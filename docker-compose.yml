@@ -1,0 +1,70 @@
+name: omni-ops
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: omniops-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-omniops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-omniops_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-omniops}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - omniops_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-omniops} -d ${POSTGRES_DB:-omniops}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: omniops-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:-omniops_redis_dev}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - omniops_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-omniops_redis_dev}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: cgr.dev/chainguard/minio:latest
+    container_name: omniops-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-omniops_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-omniops_minio_dev_password}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - omniops_miniodata:/data
+
+  minio-init:
+    image: cgr.dev/chainguard/minio-client:latest
+    container_name: omniops-minio-init
+    depends_on:
+      - minio
+    restart: on-failure
+    environment:
+      MC_HOST_local: http://${MINIO_ROOT_USER:-omniops_minio}:${MINIO_ROOT_PASSWORD:-omniops_minio_dev_password}@minio:9000
+    command:
+      - mb
+      - --ignore-existing
+      - local/${MINIO_BUCKET_EXPORTS:-omniops-exports}
+
+volumes:
+  omniops_pgdata:
+  omniops_redisdata:
+  omniops_miniodata:

@@ -1,0 +1,417 @@
+// =============================================================================
+// OmniOps — PostgreSQL Prisma Schema (16 Models)
+// Includes: Idempotency Keys, Order Status History, Auth Tokens, Notifications,
+// Soft-Delete Partial Indexes (SQL Migration), CHECK Constraints & Append-Only
+// Triggers on stock_movements & audit_logs.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------------
+
+enum UserRole {
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum AuthTokenType {
+  PASSWORD_RESET
+  ACCOUNT_INVITE
+}
+
+enum StockMovementType {
+  IN
+  OUT
+  ADJUSTMENT
+  TRANSFER_IN
+  TRANSFER_OUT
+}
+
+enum StockReferenceType {
+  ORDER
+  MANUAL
+  TRANSFER
+  REFUND
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum ExportFormat {
+  XLSX
+  PDF
+}
+
+enum ExportJobStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum NotificationType {
+  LOW_STOCK
+  OUT_OF_STOCK
+  EXPORT_READY
+  EXPORT_FAILED
+}
+
+// -----------------------------------------------------------------------------
+// 1. Identity, Auth & Security
+// -----------------------------------------------------------------------------
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  // Uniqueness enforced via Partial Unique Index (WHERE deleted_at IS NULL)
+  email        String     @db.VarChar(255)
+  passwordHash String     @map("password_hash") @db.Text
+  fullName     String     @map("full_name") @db.VarChar(160)
+  role         UserRole   @default(VIEWER)
+  status       UserStatus @default(ACTIVE)
+  lastLoginAt  DateTime?  @map("last_login_at") @db.Timestamptz
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt    DateTime?  @map("deleted_at") @db.Timestamptz
+
+  refreshTokens      RefreshToken[]
+  authTokens         AuthToken[]
+  stockMovements     StockMovement[]
+  ordersCreated      Order[]              @relation("OrderCreatedBy")
+  orderStatusChanges OrderStatusHistory[]
+  auditLogs          AuditLog[]
+  exportJobs         ExportJob[]
+  idempotencyKeys    IdempotencyKey[]
+  notifications      Notification[]
+
+  @@index([email])
+  @@index([role, status])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.VarChar(255)
+  familyId  String    @map("family_id") @db.Uuid
+  userAgent String?   @map("user_agent") @db.VarChar(512)
+  ipAddress String?   @map("ip_address") @db.VarChar(64)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model AuthToken {
+  id        String        @id @default(uuid()) @db.Uuid
+  userId    String        @map("user_id") @db.Uuid
+  tokenHash String        @unique @map("token_hash") @db.VarChar(255)
+  type      AuthTokenType
+  expiresAt DateTime      @map("expires_at") @db.Timestamptz
+  usedAt    DateTime?     @map("used_at") @db.Timestamptz
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@index([expiresAt])
+  @@map("auth_tokens")
+}
+
+model IdempotencyKey {
+  id           String   @id @default(uuid()) @db.Uuid
+  key          String   @db.VarChar(128)
+  userId       String   @map("user_id") @db.Uuid
+  requestHash  String   @map("request_hash") @db.VarChar(128)
+  responseBody Json?    @map("response_body") @db.JsonB
+  statusCode   Int?     @map("status_code")
+  expiresAt    DateTime @map("expires_at") @db.Timestamptz
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([key, userId])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}
+
+// -----------------------------------------------------------------------------
+// 2. Catalog, Warehouses & Inventory Ledger
+// -----------------------------------------------------------------------------
+
+model Warehouse {
+  id        String   @id @default(uuid()) @db.Uuid
+  code      String   @unique @db.VarChar(32)
+  name      String   @db.VarChar(160)
+  location  String   @db.VarChar(255)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  inventoryLevels InventoryLevel[]
+  stockMovements  StockMovement[]
+  orders          Order[]
+
+  @@index([isActive])
+  @@map("warehouses")
+}
+
+model Category {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(120)
+  slug      String   @unique @db.VarChar(140)
+  parentId  String?  @map("parent_id") @db.Uuid
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children Category[] @relation("CategoryHierarchy")
+  products Product[]
+
+  @@index([parentId])
+  @@index([isActive])
+  @@map("categories")
+}
+
+model Product {
+  id         String    @id @default(uuid()) @db.Uuid
+  // Uniqueness enforced via Partial Unique Index (WHERE deleted_at IS NULL)
+  sku        String    @db.VarChar(64)
+  name       String    @db.VarChar(220)
+  categoryId String    @map("category_id") @db.Uuid
+  unitCost   Decimal   @map("unit_cost") @db.Decimal(12, 2)
+  unitPrice  Decimal   @map("unit_price") @db.Decimal(12, 2)
+  isActive   Boolean   @default(true) @map("is_active")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt  DateTime? @map("deleted_at") @db.Timestamptz
+
+  category        Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  inventoryLevels InventoryLevel[]
+  stockMovements  StockMovement[]
+  orderItems      OrderItem[]
+
+  @@index([sku])
+  @@index([categoryId, isActive])
+  @@index([deletedAt])
+  @@map("products")
+}
+
+// PostgreSQL CHECK constraints applied in migration:
+// - quantity_on_hand >= 0
+// - quantity_reserved >= 0
+// - quantity_on_hand >= quantity_reserved
+model InventoryLevel {
+  id               String   @id @default(uuid()) @db.Uuid
+  productId        String   @map("product_id") @db.Uuid
+  warehouseId      String   @map("warehouse_id") @db.Uuid
+  quantityOnHand   Int      @default(0) @map("quantity_on_hand")
+  quantityReserved Int      @default(0) @map("quantity_reserved")
+  reorderPoint     Int      @default(10) @map("reorder_point")
+  version          Int      @default(1)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+
+  @@unique([productId, warehouseId])
+  @@index([warehouseId, quantityOnHand])
+  @@index([productId])
+  @@map("inventory_levels")
+}
+
+// Append-only ledger protected by PostgreSQL BEFORE UPDATE OR DELETE trigger
+model StockMovement {
+  id            String             @id @default(uuid()) @db.Uuid
+  productId     String             @map("product_id") @db.Uuid
+  warehouseId   String             @map("warehouse_id") @db.Uuid
+  type          StockMovementType
+  quantityDelta Int                @map("quantity_delta")
+  balanceAfter  Int                @map("balance_after")
+  referenceType StockReferenceType @map("reference_type")
+  referenceId   String?            @map("reference_id") @db.VarChar(128)
+  reason        String?            @db.VarChar(500)
+  performedBy   String             @map("performed_by") @db.Uuid
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz
+
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  actor     User      @relation(fields: [performedBy], references: [id], onDelete: Restrict)
+
+  @@index([productId, createdAt(sort: Desc)])
+  @@index([warehouseId, createdAt(sort: Desc)])
+  @@index([type, createdAt(sort: Desc)])
+  @@index([referenceType, referenceId])
+  @@map("stock_movements")
+}
+
+// -----------------------------------------------------------------------------
+// 3. Customers & Order Operations
+// -----------------------------------------------------------------------------
+
+model Customer {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String    @db.VarChar(160)
+  email       String    @db.VarChar(255)
+  phone       String?   @db.VarChar(40)
+  companyName String?   @map("company_name") @db.VarChar(180)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz
+
+  orders Order[]
+
+  @@index([email])
+  @@index([deletedAt])
+  @@map("customers")
+}
+
+model Order {
+  id                 String      @id @default(uuid()) @db.Uuid
+  orderNumber        String      @unique @map("order_number") @db.VarChar(40)
+  customerId         String      @map("customer_id") @db.Uuid
+  warehouseId        String      @map("warehouse_id") @db.Uuid
+  status             OrderStatus @default(PENDING)
+  subtotal           Decimal     @db.Decimal(12, 2)
+  taxAmount          Decimal     @default(0) @map("tax_amount") @db.Decimal(12, 2)
+  discountAmount     Decimal     @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  totalAmount        Decimal     @map("total_amount") @db.Decimal(12, 2)
+  cancellationReason String?     @map("cancellation_reason") @db.VarChar(500)
+  restockedOnRefund  Boolean     @default(false) @map("restocked_on_refund")
+  createdBy          String      @map("created_by") @db.Uuid
+  createdAt          DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+
+  customer      Customer             @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  warehouse     Warehouse            @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  creator       User                 @relation("OrderCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict)
+  items         OrderItem[]
+  statusHistory OrderStatusHistory[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([warehouseId, createdAt(sort: Desc)])
+  @@index([customerId, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                String  @id @default(uuid()) @db.Uuid
+  orderId           String  @map("order_id") @db.Uuid
+  productId         String  @map("product_id") @db.Uuid
+  quantity          Int
+  unitPriceSnapshot Decimal @map("unit_price_snapshot") @db.Decimal(12, 2)
+  unitCostSnapshot  Decimal @map("unit_cost_snapshot") @db.Decimal(12, 2)
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+model OrderStatusHistory {
+  id         String       @id @default(uuid()) @db.Uuid
+  orderId    String       @map("order_id") @db.Uuid
+  fromStatus OrderStatus? @map("from_status")
+  toStatus   OrderStatus  @map("to_status")
+  reason     String?      @db.VarChar(500)
+  changedBy  String       @map("changed_by") @db.Uuid
+  createdAt  DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  actor User  @relation(fields: [changedBy], references: [id], onDelete: Restrict)
+
+  @@index([orderId, createdAt(sort: Asc)])
+  @@map("order_status_history")
+}
+
+// -----------------------------------------------------------------------------
+// 4. Audit Trail, Async Exports & Notifications
+// -----------------------------------------------------------------------------
+
+// Append-only audit trail protected by PostgreSQL BEFORE UPDATE OR DELETE trigger
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  actorId     String   @map("actor_id") @db.Uuid
+  action      String   @db.VarChar(80)
+  entityType  String   @map("entity_type") @db.VarChar(80)
+  entityId    String   @map("entity_id") @db.VarChar(128)
+  beforeState Json?    @map("before_state") @db.JsonB
+  afterState  Json?    @map("after_state") @db.JsonB
+  ipAddress   String?  @map("ip_address") @db.VarChar(64)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([entityType, createdAt(sort: Desc)])
+  @@index([actorId, createdAt(sort: Desc)])
+  @@index([action, createdAt(sort: Desc)])
+  @@map("audit_logs")
+}
+
+model ExportJob {
+  id           String          @id @default(uuid()) @db.Uuid
+  requestedBy  String          @map("requested_by") @db.Uuid
+  reportType   String          @map("report_type") @db.VarChar(80)
+  format       ExportFormat
+  filters      Json            @default("{}") @db.JsonB
+  status       ExportJobStatus @default(QUEUED)
+  objectKey    String?         @map("object_key") @db.VarChar(512)
+  errorMessage String?         @map("error_message") @db.Text
+  rowCount     Int?            @map("row_count")
+  expiresAt    DateTime?       @map("expires_at") @db.Timestamptz
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  requester User @relation(fields: [requestedBy], references: [id], onDelete: Cascade)
+
+  @@index([requestedBy, createdAt(sort: Desc)])
+  @@index([status, expiresAt])
+  @@map("export_jobs")
+}
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  type      NotificationType
+  title     String           @db.VarChar(180)
+  message   String           @db.VarChar(500)
+  metadata  Json?            @db.JsonB
+  readAt    DateTime?        @map("read_at") @db.Timestamptz
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt(sort: Desc)])
+  @@map("notifications")
+}

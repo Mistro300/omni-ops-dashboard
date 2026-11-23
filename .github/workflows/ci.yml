@@ -1,0 +1,99 @@
+name: OmniOps CI — Build, Typecheck & Verification
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+  PNPM_VERSION: '10.34.9'
+  DATABASE_URL: 'postgresql://omniops:omniops_secret@localhost:5432/omniops_db?schema=public'
+  REDIS_URL: 'redis://localhost:6379'
+  JWT_ACCESS_SECRET: 'ci-access-secret-minimum-32-characters-long-2026'
+  JWT_REFRESH_SECRET: 'ci-refresh-secret-minimum-32-characters-long-2026'
+  S3_ENDPOINT: 'http://localhost:9000'
+  S3_ACCESS_KEY: 'omniops_minio'
+  S3_SECRET_KEY: 'omniops_minio_secret'
+  S3_BUCKET_EXPORTS: 'omniops-exports'
+  NEXT_PUBLIC_API_URL: 'http://localhost:4000/api/v1'
+  NEXT_PUBLIC_DEMO_MODE: 'true'
+
+jobs:
+  verify:
+    name: Monorepo Build, Typecheck, DB Migration & Unit Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: omniops
+          POSTGRES_PASSWORD: omniops_secret
+          POSTGRES_DB: omniops_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client & Apply PostgreSQL Migrations (Constraints + Triggers)
+        run: |
+          pnpm db:generate
+          pnpm db:migrate:deploy
+
+      - name: Seed Light Dataset for Verification
+        env:
+          SEED_SCALE: 'light'
+        run: pnpm db:seed
+
+      - name: Build Shared, API & Web Packages
+        run: pnpm build
+
+      - name: Run Strict TypeScript Typecheck & Lint
+        run: |
+          pnpm typecheck
+          pnpm lint
+
+      - name: Run Shared & Web Unit Tests
+        run: |
+          pnpm --filter @omni-ops/shared test
+          pnpm --filter @omni-ops/web test
+
+      - name: Run PostgreSQL EXPLAIN ANALYZE Benchmark Suite
+        run: pnpm db:benchmark

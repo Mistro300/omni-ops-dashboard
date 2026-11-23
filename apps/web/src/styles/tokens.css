@@ -1,0 +1,149 @@
+/* =============================================================================
+ * OmniOps — Enterprise Precision Theme Design Tokens (Light & Dark Modes)
+ * Strict adherence to approved UI/UX Design System specification.
+ * ============================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* Brand Primary (Indigo) */
+  --color-primary: #4f46e5;
+  --color-primary-hover: #4338ca;
+  --color-primary-soft: #eef2ff;
+  --color-primary-foreground: #ffffff;
+
+  /* Neutrals (Zinc - Light) */
+  --color-canvas: #fafafa;
+  --color-surface: #ffffff;
+  --color-subtle: #f4f4f5;
+  --color-border: #e4e4e7;
+  --color-text-primary: #09090b;
+  --color-text-secondary: #52525b;
+
+  /* Charts Palette */
+  --chart-indigo: #4f46e5;
+  --chart-emerald: #10b981;
+  --chart-cyan: #06b6d4;
+  --chart-amber: #f59e0b;
+  --chart-rose: #f43f5e;
+
+  /* Semantic Status Tokens (Soft Pill + 6px Dot) */
+  --status-emerald-bg: #ecfdf5;
+  --status-emerald-text: #047857;
+  --status-emerald-dot: #10b981;
+
+  --status-amber-bg: #fffbeb;
+  --status-amber-text: #b45309;
+  --status-amber-dot: #f59e0b;
+
+  --status-rose-bg: #fff1f2;
+  --status-rose-text: #be123c;
+  --status-rose-dot: #f43f5e;
+
+  --status-indigo-bg: #eef2ff;
+  --status-indigo-text: #4338ca;
+  --status-indigo-dot: #4f46e5;
+
+  --status-cyan-bg: #ecfeff;
+  --status-cyan-text: #0e7490;
+  --status-cyan-dot: #06b6d4;
+
+  --status-purple-bg: #faf5ff;
+  --status-purple-text: #7e22ce;
+  --status-purple-dot: #9333ea;
+
+  --status-teal-bg: #f0fdfa;
+  --status-teal-text: #0f766e;
+  --status-teal-dot: #14b8a6;
+
+  --status-zinc-bg: #f4f4f5;
+  --status-zinc-text: #3f3f46;
+  --status-zinc-dot: #71717a;
+
+  /* Audit Diff Tints */
+  --diff-before-bg: rgba(244, 63, 94, 0.08);
+  --diff-before-border: rgba(244, 63, 94, 0.25);
+  --diff-after-bg: rgba(16, 185, 129, 0.08);
+  --diff-after-border: rgba(16, 185, 129, 0.25);
+
+  /* Floating Bulk Action Bar */
+  --bulk-bar-bg: #18181b;
+  --bulk-bar-text: #fafafa;
+  --bulk-bar-border: #27272a;
+
+  /* Shape & Geometry */
+  --radius-card: 8px;
+  --radius-control: 6px;
+  --radius-pill: 9999px;
+
+  /* AppShell & DataTable Dimensions */
+  --sidebar-width: 256px;
+  --sidebar-collapsed-width: 68px;
+  --topbar-height: 60px;
+  --row-height-compact: 40px;
+  --row-height-comfortable: 52px;
+  --drawer-width-md: 540px;
+  --drawer-width-lg: 720px;
+}
+
+.dark {
+  color-scheme: dark;
+
+  /* Brand Primary (Indigo - Dark) */
+  --color-primary: #6366f1;
+  --color-primary-hover: #818cf8;
+  --color-primary-soft: rgba(99, 102, 241, 0.16);
+  --color-primary-foreground: #ffffff;
+
+  /* Neutrals (Zinc - Dark) */
+  --color-canvas: #09090b;
+  --color-surface: #111113;
+  --color-subtle: #18181b;
+  --color-border: #27272a;
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #a1a1aa;
+
+  /* Semantic Status Tokens (Dark Soft Pill) */
+  --status-emerald-bg: rgba(16, 185, 129, 0.14);
+  --status-emerald-text: #34d399;
+  --status-emerald-dot: #10b981;
+
+  --status-amber-bg: rgba(245, 158, 11, 0.14);
+  --status-amber-text: #fbbf24;
+  --status-amber-dot: #f59e0b;
+
+  --status-rose-bg: rgba(244, 63, 94, 0.14);
+  --status-rose-text: #fb7185;
+  --status-rose-dot: #f43f5e;
+
+  --status-indigo-bg: rgba(99, 102, 241, 0.16);
+  --status-indigo-text: #a5b4fc;
+  --status-indigo-dot: #6366f1;
+
+  --status-cyan-bg: rgba(6, 182, 212, 0.14);
+  --status-cyan-text: #22d3ee;
+  --status-cyan-dot: #06b6d4;
+
+  --status-purple-bg: rgba(168, 85, 247, 0.14);
+  --status-purple-text: #c084fc;
+  --status-purple-dot: #a855f7;
+
+  --status-teal-bg: rgba(20, 184, 166, 0.14);
+  --status-teal-text: #2dd4bf;
+  --status-teal-dot: #14b8a6;
+
+  --status-zinc-bg: rgba(161, 161, 170, 0.14);
+  --status-zinc-text: #d4d4d8;
+  --status-zinc-dot: #a1a1aa;
+
+  /* Audit Diff Tints (Dark) */
+  --diff-before-bg: rgba(244, 63, 94, 0.12);
+  --diff-before-border: rgba(244, 63, 94, 0.3);
+  --diff-after-bg: rgba(16, 185, 129, 0.12);
+  --diff-after-border: rgba(16, 185, 129, 0.3);
+
+  /* Floating Bulk Action Bar */
+  --bulk-bar-bg: #27272a;
+  --bulk-bar-text: #fafafa;
+  --bulk-bar-border: #3f3f46;
+}

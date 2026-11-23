@@ -1,0 +1,41 @@
+{
+  "name": "omni-ops",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.34.9",
+  "description": "OmniOps — Multi-Warehouse Inventory & Order Operations Admin Dashboard",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "db:benchmark": "pnpm --filter @omni-ops/api db:benchmark",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
+    "db:generate": "pnpm --filter @omni-ops/api db:generate",
+    "db:migrate": "pnpm --filter @omni-ops/api db:migrate",
+    "db:migrate:deploy": "pnpm --filter @omni-ops/api db:migrate:deploy",
+    "db:seed": "pnpm --filter @omni-ops/api db:seed",
+    "db:studio": "pnpm --filter @omni-ops/api db:studio",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
+  },
+  "devDependencies": {
+    "prettier": "^3.5.3",
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.2"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "argon2",
+      "esbuild",
+      "prisma"
+    ]
+  }
+}
