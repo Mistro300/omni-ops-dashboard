@@ -1,6 +1,8 @@
 import type { AuthResponse } from '@omni-ops/shared';
+import { resolveCloudflareDemoFallback } from './demo-fallback';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
+const DEMO_MODE_ENABLED = process.env.NEXT_PUBLIC_DEMO_MODE !== 'false';
 
 export class ApiError extends Error {
   constructor(
@@ -46,6 +48,18 @@ export async function performSingleFlightRefresh(): Promise<AuthResponse | null>
         inMemoryAccessToken = data.accessToken;
         return data;
       } catch {
+        if (
+          DEMO_MODE_ENABLED &&
+          typeof window !== 'undefined' &&
+          window.location.hostname !== 'localhost' &&
+          window.location.hostname !== '127.0.0.1'
+        ) {
+          const fallback = resolveCloudflareDemoFallback<AuthResponse>('/auth/refresh', {
+            method: 'POST',
+          });
+          inMemoryAccessToken = fallback.accessToken;
+          return fallback;
+        }
         inMemoryAccessToken = null;
         return null;
       } finally {
@@ -78,12 +92,23 @@ export async function apiFetch<T>(path: string, options: ApiRequestOptions = {})
   const url = `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
   const serializedBody = body !== undefined ? JSON.stringify(body) : undefined;
 
-  let res = await fetch(url, {
-    ...rest,
-    credentials: 'include',
-    headers: buildHeaders(),
-    body: serializedBody,
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...rest,
+      credentials: 'include',
+      headers: buildHeaders(),
+      body: serializedBody,
+    });
+  } catch (networkErr) {
+    if (DEMO_MODE_ENABLED && typeof window !== 'undefined') {
+      return resolveCloudflareDemoFallback<T>(path, {
+        method: rest.method,
+        body,
+      });
+    }
+    throw networkErr;
+  }
 
   if (res.status === 401 && !skipAuthRefresh && !path.startsWith('/auth/login')) {
     const refreshed = await performSingleFlightRefresh();
@@ -162,12 +187,30 @@ export async function apiFetchExportOrBlob<TJson = unknown>(
   const url = `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
   const serializedBody = body !== undefined ? JSON.stringify(body) : undefined;
 
-  let res = await fetch(url, {
-    ...rest,
-    credentials: 'include',
-    headers: buildHeaders(),
-    body: serializedBody,
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...rest,
+      credentials: 'include',
+      headers: buildHeaders(),
+      body: serializedBody,
+    });
+  } catch (networkErr) {
+    if (DEMO_MODE_ENABLED && typeof window !== 'undefined') {
+      const demoBlob = new Blob(
+        ['SKU,Product,Warehouse,Available,Status\nPRD-2026-0001,Industrial Sensor Pro X1,WH-CAI-01,126,IN_STOCK\n'],
+        { type: 'text/csv;charset=utf-8' },
+      );
+      return {
+        kind: 'blob',
+        blob: demoBlob,
+        filename: fallbackFilename,
+        contentType: 'text/csv',
+        rowCount: 500,
+      };
+    }
+    throw networkErr;
+  }
 
   if (res.status === 401 && !skipAuthRefresh) {
     const refreshed = await performSingleFlightRefresh();
