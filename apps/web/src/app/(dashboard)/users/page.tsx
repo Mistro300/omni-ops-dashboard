@@ -165,10 +165,16 @@ function UsersManagementContent() {
         header: isAr ? 'الدور' : 'Role',
         meta: { sortKey: 'role' },
         cell: ({ row }) => {
-          const st = getBadgeTokenStyles(ROLE_BADGE_TONE[row.original.role]);
+          const roleColors: Record<UserRole, string> = {
+            ADMIN: '#7E22CE',
+            EDITOR: '#312E81',
+            VIEWER: '#64748B',
+          };
           return (
-            <span className="status-pill" style={st.pill}>
-              <span className="status-dot" style={st.dot} />
+            <span
+              className="mono-tabular inline-flex items-center rounded-pill px-3 py-0.5 text-[11px] font-bold text-white"
+              style={{ backgroundColor: roleColors[row.original.role] }}
+            >
               {row.original.role}
             </span>
           );
@@ -245,60 +251,66 @@ function UsersManagementContent() {
   const allPermissions = Object.values(PERMISSIONS);
   const roles: UserRole[] = [ROLES.ADMIN, ROLES.EDITOR, ROLES.VIEWER];
 
+  const matrixSections = [
+    { ar: 'المنتجات', en: 'Products', admin: true, editor: true, viewer: false },
+    { ar: 'المخزون', en: 'Inventory', admin: true, editor: true, viewer: false },
+    { ar: 'الطلبات', en: 'Orders', admin: true, editor: true, viewer: true },
+    { ar: 'التحليلات والتصدير', en: 'Analytics & Exports', admin: true, editor: true, viewer: true },
+    { ar: 'سجل التدقيق وإدارة المستخدمين', en: 'Audit & Users Admin', admin: true, editor: false, viewer: false },
+  ];
+
   return (
-    <div className="space-y-5 text-start">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-ink-primary">
-            {isAr ? 'المستخدمون والصلاحيات (Users & RBAC)' : 'Users & RBAC Administration'}
-          </h1>
-          <p className="mt-0.5 text-xs text-ink-secondary">
-            {isAr
-              ? 'إدارة حسابات الفريق، تعيين الأدوار، تعليق الحسابات، وإنهاء الجلسات النشطة.'
-              : 'Manage team accounts, assign roles, suspend accounts, and revoke active sessions.'}
-          </p>
+    <div className="space-y-4 text-start">
+      {/* Header matching Mockup 2 */}
+      <div>
+        <div className="text-[11px] text-ink-secondary">
+          {isAr ? 'الإدارة / المستخدمون والصلاحيات' : 'Administration / Users & Permissions'}
         </div>
-
-        <div className="flex items-center gap-2">
-          <div className="inline-flex rounded-control border border-border bg-surface p-1 text-xs">
-            <button
-              type="button"
-              onClick={() => setParams({ tab: 'users', page: 1 }, false)}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-control px-3 py-1.5 font-medium',
-                tab === 'users' ? 'bg-primary text-primary-foreground' : 'text-ink-secondary',
-              )}
-            >
-              <Users className="h-3.5 w-3.5" />
-              {isAr ? 'المستخدمون' : 'Users'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setParams({ tab: 'matrix' }, false)}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-control px-3 py-1.5 font-medium',
-                tab === 'matrix' ? 'bg-primary text-primary-foreground' : 'text-ink-secondary',
-              )}
-            >
-              <ShieldCheck className="h-3.5 w-3.5" />
-              {isAr ? 'مصفوفة الصلاحيات' : 'RBAC Matrix'}
-            </button>
-          </div>
-
-          {tab === 'users' && (
-            <button
-              type="button"
-              onClick={() => setCreateOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-control bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary-hover"
-            >
-              <Plus className="h-4 w-4" />
-              {isAr ? 'إضافة مستخدم' : 'Add User'}
-            </button>
-          )}
-        </div>
+        <h1 className="mt-0.5 text-2xl font-bold text-ink-primary">
+          {isAr ? 'المستخدمون والصلاحيات' : 'Users & Permissions'}
+        </h1>
       </div>
 
-      {tab === 'users' ? (
+      {/* Sub-toolbar: Underline Tabs (Right) + "+ إضافة مستخدم" (Left) matching Mockup 2 */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-2">
+        <div className="flex items-center gap-6 text-sm">
+          <button
+            type="button"
+            onClick={() => setParams({ tab: 'users', page: 1 }, false)}
+            className={cn(
+              'relative pb-2 font-bold transition-colors',
+              tab === 'users'
+                ? 'border-b-2 border-primary text-primary'
+                : 'text-ink-secondary hover:text-ink-primary',
+            )}
+          >
+            {isAr ? 'المستخدمون' : 'Users'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setParams({ tab: 'matrix' }, false)}
+            className={cn(
+              'relative pb-2 font-bold transition-colors',
+              tab === 'matrix'
+                ? 'border-b-2 border-primary text-primary'
+                : 'text-ink-secondary hover:text-ink-primary',
+            )}
+          >
+            {isAr ? 'مصفوفة الصلاحيات' : 'RBAC Matrix'}
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setCreateOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-control bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary-hover"
+        >
+          <Plus className="h-4 w-4" />
+          {isAr ? 'إضافة مستخدم' : 'Add User'}
+        </button>
+      </div>
+
+      {tab === 'users' && (
         <DataTable
           columns={columns}
           data={usersQuery.data?.data ?? []}
@@ -308,7 +320,7 @@ function UsersManagementContent() {
           onRetry={() => void usersQuery.refetch()}
           searchValue={searchInput}
           onSearchChange={setSearchInput}
-          searchPlaceholder={isAr ? 'بحث بالاسم أو البريد...' : 'Search name or email...'}
+          searchPlaceholder={isAr ? 'بحث بالاسم أو البريد الإلكتروني...' : 'Search name or email...'}
           sortBy={sortBy}
           sortDir={sortDir}
           onSortChange={(f) =>
@@ -320,70 +332,101 @@ function UsersManagementContent() {
           filtersSlot={
             <>
               <select
+                value={statusFilter}
+                onChange={(e) => setParams({ status: e.target.value })}
+                className="h-8 rounded-control border border-border bg-canvas px-2.5 text-xs text-ink-primary outline-none"
+              >
+                <option value="">Status</option>
+                <option value="ACTIVE">ACTIVE</option>
+                <option value="SUSPENDED">SUSPENDED</option>
+              </select>
+              <select
                 value={roleFilter}
                 onChange={(e) => setParams({ role: e.target.value })}
                 className="h-8 rounded-control border border-border bg-canvas px-2.5 text-xs text-ink-primary outline-none"
               >
-                <option value="">{isAr ? 'كل الأدوار' : 'All Roles'}</option>
+                <option value="">Role</option>
                 {roles.map((r) => (
                   <option key={r} value={r}>
                     {r}
                   </option>
                 ))}
               </select>
-              <select
-                value={statusFilter}
-                onChange={(e) => setParams({ status: e.target.value })}
-                className="h-8 rounded-control border border-border bg-canvas px-2.5 text-xs text-ink-primary outline-none"
-              >
-                <option value="">{isAr ? 'كل الحالات' : 'All Statuses'}</option>
-                <option value="ACTIVE">ACTIVE</option>
-                <option value="SUSPENDED">SUSPENDED</option>
-              </select>
             </>
           }
         />
-      ) : (
-        <div className="overflow-x-auto rounded-card border border-border bg-surface">
-          <table className="w-full border-collapse text-sm">
+      )}
+
+      {/* Inline RBAC Matrix Section matching Mockup 2 (visible below Users Table and in Matrix tab) */}
+      <section className="overflow-hidden rounded-card border border-border bg-surface">
+        <div className="border-b border-border px-4 py-3">
+          <h2 className="text-sm font-bold text-ink-primary">
+            {isAr ? 'مصفوفة الصلاحيات (RBAC Matrix)' : 'RBAC Permissions Matrix'}
+          </h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-xs">
             <thead>
-              <tr className="border-b border-border bg-subtle text-xs text-ink-secondary">
-                <th className="px-4 py-2.5 text-start font-semibold">Permission</th>
-                {roles.map((r) => {
-                  const st = getBadgeTokenStyles(ROLE_BADGE_TONE[r]);
-                  return (
-                    <th key={r} className="px-4 py-2.5 text-center font-semibold">
-                      <span className="status-pill" style={st.pill}>
-                        <span className="status-dot" style={st.dot} />
-                        {r}
-                      </span>
-                    </th>
-                  );
-                })}
+              <tr className="border-b border-border bg-subtle text-ink-secondary">
+                <th className="px-4 py-2.5 text-start font-semibold">
+                  {isAr ? 'القسم' : 'Module / Domain'}
+                </th>
+                <th className="px-4 py-2.5 text-center font-semibold">VIEWER</th>
+                <th className="px-4 py-2.5 text-center font-semibold">EDITOR</th>
+                <th className="px-4 py-2.5 text-center font-semibold">ADMIN</th>
               </tr>
             </thead>
             <tbody>
-              {allPermissions.map((perm) => (
-                <tr key={perm} className="h-[40px] border-b border-border last:border-b-0">
-                  <td className="mono-tabular px-4 py-2 text-xs text-ink-primary">{perm}</td>
-                  {roles.map((r) => {
-                    const granted = matrixQuery.data?.matrix[r]?.includes(perm) ?? false;
-                    return (
-                      <td key={r} className="px-4 py-2 text-center text-xs font-medium">
-                        {granted ? (
-                          <span style={{ color: 'var(--status-emerald-text)' }}>✓</span>
-                        ) : (
-                          <span className="text-ink-secondary">—</span>
-                        )}
-                      </td>
-                    );
-                  })}
+              {matrixSections.map((sec) => (
+                <tr key={sec.en} className="h-[44px] border-b border-border last:border-b-0">
+                  <td className="px-4 font-semibold text-ink-primary">
+                    {isAr ? sec.ar : sec.en}
+                  </td>
+                  {([sec.viewer, sec.editor, sec.admin] as const).map((granted, idx) => (
+                    <td key={idx} className="px-4 text-center">
+                      {granted ? (
+                        <span
+                          className="inline-flex h-5 w-5 items-center justify-center rounded text-[11px] font-bold text-white"
+                          style={{ backgroundColor: '#10B981' }}
+                        >
+                          ✓
+                        </span>
+                      ) : (
+                        <span className="text-ink-secondary">—</span>
+                      )}
+                    </td>
+                  ))}
                 </tr>
               ))}
+              {tab === 'matrix' &&
+                allPermissions.map((perm) => (
+                  <tr key={perm} className="h-[40px] border-b border-border last:border-b-0 bg-canvas/40">
+                    <td dir="ltr" className="mono-tabular px-4 py-2 text-xs text-ink-secondary">
+                      {perm}
+                    </td>
+                    {([ROLES.VIEWER, ROLES.EDITOR, ROLES.ADMIN] as const).map((r) => {
+                      const granted = matrixQuery.data?.matrix[r]?.includes(perm) ?? false;
+                      return (
+                        <td key={r} className="px-4 py-2 text-center">
+                          {granted ? (
+                            <span
+                              className="inline-flex h-5 w-5 items-center justify-center rounded text-[11px] font-bold text-white"
+                              style={{ backgroundColor: '#10B981' }}
+                            >
+                              ✓
+                            </span>
+                          ) : (
+                            <span className="text-ink-secondary">—</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
             </tbody>
           </table>
         </div>
-      )}
+      </section>
 
       {/* Create User Modal */}
       {createOpen && (

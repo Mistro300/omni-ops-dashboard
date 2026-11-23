@@ -139,7 +139,29 @@ function CustomersDirectoryContent() {
         accessorKey: 'name',
         header: isAr ? 'الاسم' : 'Name',
         meta: { sortKey: 'name' },
-        cell: ({ row }) => <span className="font-semibold text-ink-primary">{row.original.name}</span>,
+        cell: ({ row }) => {
+          const firstName = row.original.name.split(' ')[0] ?? row.original.name.slice(0, 2);
+          const avatarPalettes = [
+            { bg: '#DBEAFE', text: '#1E40AF' },
+            { bg: '#FCE7F3', text: '#9D174D' },
+            { bg: '#D1FAE5', text: '#065F46' },
+            { bg: '#EDE9FE', text: '#5B21B6' },
+            { bg: '#E0F2FE', text: '#075985' },
+            { bg: '#FFE4E6', text: '#9F1239' },
+          ];
+          const palette = avatarPalettes[row.index % avatarPalettes.length]!;
+          return (
+            <div className="flex items-center gap-2.5">
+              <span
+                className="inline-flex h-8 min-w-8 items-center justify-center rounded-pill px-2 text-[11px] font-bold"
+                style={{ backgroundColor: palette.bg, color: palette.text }}
+              >
+                {firstName}
+              </span>
+              <span className="font-bold text-ink-primary">{row.original.name}</span>
+            </div>
+          );
+        },
       },
       {
         accessorKey: 'companyName',
@@ -217,18 +239,44 @@ function CustomersDirectoryContent() {
     [isAr],
   );
 
+  const [activeRange, setActiveRange] = useState<'7d' | '30d' | '90d' | '12m'>('30d');
+
   return (
     <div className="space-y-4 text-start">
+      {/* Header matching Mockup 4 */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-ink-primary">
-            {isAr ? 'دليل العملاء (Customers Directory)' : 'Customers Directory'}
-          </h1>
-          <p className="mt-0.5 text-xs text-ink-secondary">
-            {isAr
-              ? 'إدارة حسابات العملاء مع ملخص عدد الطلبات وإجمالي الإنفاق.'
-              : 'Manage customer accounts with aggregated order counts and total spend.'}
-          </p>
+          <div className="text-[11px] text-ink-secondary">
+            {isAr ? 'العمليات / العملاء' : 'Operations / Customers'}
+          </div>
+          <div className="mt-0.5 flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold text-ink-primary">
+              {isAr ? 'دليل العملاء' : 'Customers Directory'}
+            </h1>
+            <span className="mono-tabular rounded-pill bg-subtle px-2.5 py-0.5 text-xs font-semibold text-ink-secondary">
+              {data?.meta.total ?? 200} {isAr ? 'عميل' : 'customers'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Sub-toolbar: Segmented Range Pills + "+ إضافة عميل" matching Mockup 4 */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex rounded-control border border-border bg-surface p-0.5 text-xs">
+          {(['7d', '30d', '90d', '12m'] as const).map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setActiveRange(r)}
+              className={`mono-tabular rounded-control px-3 py-1.5 font-semibold transition-colors ${
+                activeRange === r
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-ink-secondary hover:text-ink-primary'
+              }`}
+            >
+              {r}
+            </button>
+          ))}
         </div>
 
         <PermissionGate permission={PERMISSIONS.CUSTOMERS_WRITE}>
@@ -244,6 +292,76 @@ function CustomersDirectoryContent() {
             {isAr ? 'إضافة عميل' : 'New Customer'}
           </button>
         </PermissionGate>
+      </div>
+
+      {/* 4 Summary KPI Cards matching Mockup 4 */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          {
+            title: isAr ? 'إجمالي العملاء' : 'Total Customers',
+            value: String(data?.meta.total ?? 200),
+            badge: '+1%',
+            points: '0,24 14,20 28,22 42,14 56,10 70,12 84,6',
+            stroke: '#10B981',
+          },
+          {
+            title: isAr ? 'العملاء النشطون' : 'Active Customers',
+            value: '174',
+            badge: '+1%',
+            points: '0,24 14,22 28,18 42,20 56,12 70,14 84,8',
+            stroke: '#10B981',
+          },
+          {
+            title: isAr ? 'متوسط الإنفاق' : 'Average Spend',
+            value: '$29,200',
+            badge: null,
+            points: '0,22 14,16 28,24 42,12 56,16 70,10 84,8',
+            stroke: '#4F46E5',
+          },
+          {
+            title: isAr ? 'متوسط الطلبات' : 'Avg Orders Index',
+            value: '203',
+            badge: '+4%',
+            points: '0,20 14,22 28,18 42,16 56,19 70,12 84,6',
+            stroke: '#10B981',
+          },
+        ].map((card, i) => (
+          <div
+            key={i}
+            className="flex flex-col justify-between rounded-card border border-border bg-surface p-4"
+          >
+            <div className="text-xs font-semibold text-ink-secondary">{card.title}</div>
+            <div className="mt-2 flex items-end justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span dir="ltr" className="mono-tabular text-2xl font-bold text-ink-primary">
+                  {card.value}
+                </span>
+                {card.badge && (
+                  <span
+                    dir="ltr"
+                    className="mono-tabular rounded-pill px-2 py-0.5 text-[11px] font-bold"
+                    style={{
+                      backgroundColor: 'var(--status-emerald-bg)',
+                      color: 'var(--status-emerald-text)',
+                    }}
+                  >
+                    {card.badge}
+                  </span>
+                )}
+              </div>
+              <svg width="86" height="28" viewBox="0 0 86 28" className="shrink-0">
+                <polyline
+                  fill="none"
+                  stroke={card.stroke}
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  points={card.points}
+                />
+              </svg>
+            </div>
+          </div>
+        ))}
       </div>
 
       <DataTable

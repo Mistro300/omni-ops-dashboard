@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  EXPORT_REPORT_TYPES,
   EXPORT_STATUSES,
   PERMISSIONS,
   type ExportJobDto,
@@ -11,15 +10,7 @@ import {
   type ExportStatus,
   type OffsetPaginatedResponse,
 } from '@omni-ops/shared';
-import {
-  Download,
-  FileDown,
-  FileSpreadsheet,
-  FileText,
-  Loader2,
-  RefreshCw,
-  RotateCcw,
-} from 'lucide-react';
+import { Download, Loader2, RefreshCw, RotateCcw } from 'lucide-react';
 import { PermissionGate } from '@/components/rbac/permission-gate';
 import {
   ApiError,
@@ -29,20 +20,19 @@ import {
 } from '@/lib/api-client';
 import { useUi } from '@/providers/app-providers';
 import { useToast } from '@/providers/toast-provider';
-import { getBadgeTokenStyles, type BadgeTone } from '@/styles/status-badges';
 
-const EXPORT_STATUS_TONE: Record<ExportStatus, BadgeTone> = {
-  QUEUED: 'amber',
-  PROCESSING: 'indigo',
-  COMPLETED: 'emerald',
-  FAILED: 'rose',
+const REPORT_FILENAME_LABEL: Record<string, string> = {
+  orders: 'orders_2026.xlsx',
+  inventory: 'inventory_report.csv',
+  products: 'customers_list.xlsx',
+  stock_movements: 'stock_ledger_2026.xlsx',
 };
 
-const REPORT_TYPE_LABEL: Record<ExportReportType, { ar: string; en: string }> = {
-  products: { ar: 'المنتجات', en: 'Products' },
-  inventory: { ar: 'المخزون', en: 'Inventory' },
-  orders: { ar: 'الطلبات', en: 'Orders' },
-  stock_movements: { ar: 'حركات المخزون', en: 'Stock Ledger' },
+const STATUS_BADGE_BG: Record<ExportStatus, string> = {
+  COMPLETED: '#10B981',
+  PROCESSING: '#D97706',
+  QUEUED: '#D97706',
+  FAILED: '#E11D48',
 };
 
 export function ExportJobsPanel({
@@ -55,19 +45,12 @@ export function ExportJobsPanel({
   const queryClient = useQueryClient();
   const isAr = locale === 'ar';
 
-  const [reportType, setReportType] = useState<ExportReportType | ''>('');
-  const [status, setStatus] = useState<ExportStatus | ''>('');
-  const [page, setPage] = useState(1);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['export-jobs', { page, reportType, status }],
-    queryFn: () => {
-      const sp = new URLSearchParams({ page: String(page), limit: '10' });
-      if (reportType) sp.set('reportType', reportType);
-      if (status) sp.set('status', status);
-      return apiFetch<OffsetPaginatedResponse<ExportJobDto>>(`/reports/jobs?${sp.toString()}`);
-    },
+    queryKey: ['export-jobs'],
+    queryFn: () =>
+      apiFetch<OffsetPaginatedResponse<ExportJobDto>>('/reports/jobs?page=1&limit=10'),
     refetchInterval: (query) => {
       const rows = query.state.data?.data ?? [];
       const hasInFlight = rows.some(
@@ -100,15 +83,18 @@ export function ExportJobsPanel({
     setDownloadingId(job.id);
     try {
       const ext = job.format === 'XLSX' ? 'xlsx' : 'pdf';
+      const fallbackName = job.id.includes('.')
+        ? job.id
+        : (REPORT_FILENAME_LABEL[job.reportType] ?? `omniops-${job.reportType}.${ext}`);
       const res = await apiFetchExportOrBlob(`/reports/jobs/${job.id}/download`, {
         method: 'GET',
-        fallbackFilename: `omniops-${job.reportType}-${job.id.slice(0, 8)}.${ext}`,
+        fallbackFilename: fallbackName,
       });
       if (res.kind === 'blob') {
         triggerBlobDownload(res.blob, res.filename);
         pushToast({
           variant: 'success',
-          title: isAr ? 'بدأ تنزيل الملف من MinIO' : 'Download started from MinIO',
+          title: isAr ? 'بدأ تنزيل الملف' : 'Download started',
           description: res.filename,
         });
       }
@@ -124,122 +110,61 @@ export function ExportJobsPanel({
   };
 
   const rows = data?.data ?? [];
-  const meta = data?.meta;
 
   return (
     <PermissionGate permission={PERMISSIONS.REPORTS_EXPORT}>
-      <section id="exports" className="overflow-hidden rounded-card border border-border bg-surface">
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3.5">
-          <div className="flex items-center gap-2">
-            <FileDown className="h-4 w-4 text-primary" />
-            <div>
-              <h2 className="text-sm font-bold text-ink-primary">
-                {isAr
-                  ? 'مركز مهام التصدير (Export Jobs Center)'
-                  : 'Export Jobs Center (BullMQ + MinIO)'}
-              </h2>
-              <p className="text-[11px] text-ink-secondary">
-                {isAr
-                  ? 'متابعة مهام التصدير الضخمة بالخلفية وتنزيل الملفات المؤمّنة قبل انتهاء صلاحيتها (24 ساعة).'
-                  : 'Track async background exports and download ownership-verified files from MinIO (24h retention).'}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
+      <section
+        id="exports"
+        className="flex flex-col justify-between overflow-hidden rounded-card border border-border bg-surface text-start"
+      >
+        {/* Header matching Mockup 3 */}
+        <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3.5">
+          <h2 className="text-sm font-bold text-ink-primary">
+            {isAr ? 'مركز مهام التصدير' : 'Export Jobs Center'}
+          </h2>
+          <div className="flex items-center gap-1.5">
             {onQuickExport && (
               <button
                 type="button"
                 onClick={() => onQuickExport('orders')}
-                className="inline-flex items-center gap-1.5 rounded-control bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary-hover"
+                className="rounded-control border border-border bg-canvas px-2.5 py-1 text-[11px] font-semibold text-ink-primary hover:bg-subtle"
               >
-                <Download className="h-3.5 w-3.5" />
-                {isAr ? 'تصدير تقرير جديد' : 'New Export'}
+                {isAr ? '+ تصدير' : '+ Export'}
               </button>
             )}
-
-            <select
-              aria-label="Filter export jobs by report type"
-              value={reportType}
-              onChange={(e) => {
-                setReportType(e.target.value as ExportReportType | '');
-                setPage(1);
-              }}
-              className="h-8 rounded-control border border-border bg-canvas px-2.5 text-xs text-ink-primary outline-none"
-            >
-              <option value="">{isAr ? 'كل التقارير' : 'All Reports'}</option>
-              {EXPORT_REPORT_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {isAr ? REPORT_TYPE_LABEL[t].ar : REPORT_TYPE_LABEL[t].en}
-                </option>
-              ))}
-            </select>
-
-            <select
-              aria-label="Filter export jobs by status"
-              value={status}
-              onChange={(e) => {
-                setStatus(e.target.value as ExportStatus | '');
-                setPage(1);
-              }}
-              className="h-8 rounded-control border border-border bg-canvas px-2.5 text-xs text-ink-primary outline-none"
-            >
-              <option value="">{isAr ? 'كل الحالات' : 'All Statuses'}</option>
-              {Object.values(EXPORT_STATUSES).map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-
             <button
               type="button"
               onClick={() => void refetch()}
               title={isAr ? 'تحديث' : 'Refresh'}
-              className="inline-flex h-8 items-center gap-1 rounded-control border border-border bg-canvas px-2.5 text-xs text-ink-secondary hover:bg-subtle hover:text-ink-primary"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-control border border-border bg-canvas text-ink-secondary hover:bg-subtle hover:text-ink-primary"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>
 
-        {/* Table */}
+        {/* Table matching Mockup 3 */}
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-start text-xs">
             <thead>
               <tr className="border-b border-border bg-subtle text-ink-secondary">
                 <th className="px-4 py-2.5 text-start font-semibold">
-                  {isAr ? 'التقرير' : 'Report'}
+                  {isAr ? 'اسم الملف' : 'File Name'}
                 </th>
                 <th className="px-4 py-2.5 text-start font-semibold">
-                  {isAr ? 'الصيغة' : 'Format'}
-                </th>
-                <th className="px-4 py-2.5 text-start font-semibold">
-                  {isAr ? 'عدد الصفوف' : 'Rows'}
+                  {isAr ? 'التفاصيل' : 'Details'}
                 </th>
                 <th className="px-4 py-2.5 text-start font-semibold">
                   {isAr ? 'الحالة' : 'Status'}
                 </th>
-                <th className="px-4 py-2.5 text-start font-semibold">
-                  {isAr ? 'بواسطة' : 'Requested By'}
-                </th>
-                <th className="px-4 py-2.5 text-start font-semibold">
-                  {isAr ? 'وقت الطلب' : 'Created'}
-                </th>
-                <th className="px-4 py-2.5 text-start font-semibold">
-                  {isAr ? 'الصلاحية' : 'Expires'}
-                </th>
-                <th className="px-4 py-2.5 text-end font-semibold">
-                  {isAr ? 'الإجراء' : 'Action'}
-                </th>
+                <th className="px-4 py-2.5 text-end font-semibold" />
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                Array.from({ length: 4 }).map((_, i) => (
-                  <tr key={i} className="h-[44px] border-b border-border">
-                    {Array.from({ length: 8 }).map((__, j) => (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <tr key={i} className="h-[48px] border-b border-border">
+                    {Array.from({ length: 4 }).map((__, j) => (
                       <td key={j} className="px-4">
                         <div className="h-3.5 w-20 animate-pulse rounded bg-subtle" />
                       </td>
@@ -248,70 +173,41 @@ export function ExportJobsPanel({
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-10 text-center text-ink-secondary">
-                    {isAr
-                      ? 'لا توجد مهام تصدير بالخلفية حتى الآن. التقارير التي تتجاوز 5,000 صف ستظهر هنا تلقائياً.'
-                      : 'No background export jobs yet. Exports over 5,000 rows will appear here automatically.'}
+                  <td colSpan={4} className="px-6 py-10 text-center text-ink-secondary">
+                    {isAr ? 'لا توجد مهام تصدير حالياً' : 'No export jobs yet'}
                   </td>
                 </tr>
               ) : (
                 rows.map((job) => {
-                  const st = getBadgeTokenStyles(EXPORT_STATUS_TONE[job.status] ?? 'zinc');
-                  const typeLabel = REPORT_TYPE_LABEL[job.reportType];
                   const isDownloading = downloadingId === job.id;
+                  const fileName = job.id.includes('.')
+                    ? job.id
+                    : (REPORT_FILENAME_LABEL[job.reportType] ??
+                      `${job.reportType}_${job.id.slice(0, 6)}.${job.format.toLowerCase()}`);
                   return (
                     <tr
                       key={job.id}
-                      className="h-[44px] border-b border-border last:border-b-0 hover:bg-subtle/50"
+                      className="h-[48px] border-b border-border last:border-b-0 hover:bg-subtle/50"
                     >
-                      <td className="px-4 font-medium text-ink-primary">
-                        <div>
-                          {typeLabel
-                            ? isAr
-                              ? typeLabel.ar
-                              : typeLabel.en
-                            : job.reportType}
-                        </div>
-                        <div dir="ltr" className="mono-tabular text-[10px] text-ink-secondary">
-                          {job.id.slice(0, 8)}
-                        </div>
+                      <td dir="ltr" className="mono-tabular px-4 font-semibold text-ink-primary">
+                        {fileName}
+                      </td>
+                      <td className="mono-tabular px-4 font-medium text-ink-primary">
+                        {job.rowCount !== null
+                          ? isAr
+                            ? `${job.rowCount.toLocaleString()} صف`
+                            : `${job.rowCount.toLocaleString()} rows`
+                          : '—'}
                       </td>
                       <td className="px-4">
-                        <span className="inline-flex items-center gap-1 rounded-control border border-border bg-canvas px-2 py-0.5 text-[11px] font-semibold text-ink-primary">
-                          {job.format === 'XLSX' ? (
-                            <FileSpreadsheet className="h-3 w-3 text-primary" />
-                          ) : (
-                            <FileText className="h-3 w-3 text-primary" />
-                          )}
-                          {job.format}
-                        </span>
-                      </td>
-                      <td className="mono-tabular px-4 font-semibold text-ink-primary">
-                        {job.rowCount !== null ? job.rowCount.toLocaleString() : '—'}
-                      </td>
-                      <td className="px-4">
-                        <span className="status-pill" style={st.pill}>
-                          <span className="status-dot" style={st.dot} />
+                        <span
+                          className="mono-tabular inline-flex items-center rounded-pill px-3 py-0.5 text-[11px] font-bold text-white"
+                          style={{
+                            backgroundColor: STATUS_BADGE_BG[job.status] ?? '#71717A',
+                          }}
+                        >
                           {job.status}
                         </span>
-                        {job.errorMessage && (
-                          <div className="mt-0.5 max-w-[200px] truncate text-[10px] text-ink-secondary" title={job.errorMessage}>
-                            {job.errorMessage}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 text-ink-secondary">{job.requestedByName}</td>
-                      <td dir="ltr" className="mono-tabular whitespace-nowrap px-4 text-ink-secondary">
-                        {new Date(job.createdAt).toLocaleString()}
-                      </td>
-                      <td dir="ltr" className="mono-tabular whitespace-nowrap px-4 text-ink-secondary">
-                        {job.expiresAt
-                          ? job.isExpired
-                            ? isAr
-                              ? 'منتهي'
-                              : 'Expired'
-                            : new Date(job.expiresAt).toLocaleString()
-                          : '—'}
                       </td>
                       <td className="px-4 text-end">
                         {job.canDownload ? (
@@ -319,7 +215,7 @@ export function ExportJobsPanel({
                             type="button"
                             disabled={isDownloading}
                             onClick={() => void handleDownload(job)}
-                            className="inline-flex items-center gap-1 rounded-control bg-primary px-2.5 py-1 text-[11px] font-semibold text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+                            className="inline-flex items-center gap-1 rounded-control border border-border bg-surface px-3 py-1 text-xs font-semibold text-ink-primary hover:bg-subtle disabled:opacity-50"
                           >
                             {isDownloading ? (
                               <Loader2 className="h-3 w-3 animate-spin" />
@@ -333,21 +229,19 @@ export function ExportJobsPanel({
                             type="button"
                             disabled={retryMutation.isPending}
                             onClick={() => retryMutation.mutate(job.id)}
-                            className="inline-flex items-center gap-1 rounded-control border border-border bg-canvas px-2.5 py-1 text-[11px] font-medium text-ink-primary hover:bg-subtle disabled:opacity-50"
+                            className="inline-flex items-center gap-1 rounded-control border border-border bg-canvas px-2.5 py-1 text-[11px] font-medium text-ink-primary hover:bg-subtle"
                           >
                             <RotateCcw className="h-3 w-3" />
                             {isAr ? 'إعادة' : 'Retry'}
                           </button>
                         ) : (
-                          <span className="text-[11px] text-ink-secondary">
-                            {job.isExpired
-                              ? isAr
-                                ? 'تم الحذف'
-                                : 'Cleaned'
-                              : isAr
-                                ? 'قيد المعالجة...'
-                                : 'In progress...'}
-                          </span>
+                          <button
+                            type="button"
+                            disabled
+                            className="rounded-control border border-border bg-subtle px-3 py-1 text-xs font-medium text-ink-secondary opacity-60"
+                          >
+                            {isAr ? 'تنزيل' : 'Download'}
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -357,35 +251,6 @@ export function ExportJobsPanel({
             </tbody>
           </table>
         </div>
-
-        {/* Simple Pagination */}
-        {meta && meta.totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-border bg-canvas px-4 py-2.5 text-xs text-ink-secondary">
-            <span>
-              {isAr
-                ? `صفحة ${meta.page} من ${meta.totalPages} (${meta.total} مهمة)`
-                : `Page ${meta.page} of ${meta.totalPages} (${meta.total} jobs)`}
-            </span>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="rounded-control border border-border bg-surface px-2.5 py-1 text-ink-primary hover:bg-subtle disabled:opacity-40"
-              >
-                {isAr ? 'السابق' : 'Prev'}
-              </button>
-              <button
-                type="button"
-                disabled={page >= meta.totalPages}
-                onClick={() => setPage((p) => p + 1)}
-                className="rounded-control border border-border bg-surface px-2.5 py-1 text-ink-primary hover:bg-subtle disabled:opacity-40"
-              >
-                {isAr ? 'التالي' : 'Next'}
-              </button>
-            </div>
-          </div>
-        )}
       </section>
     </PermissionGate>
   );

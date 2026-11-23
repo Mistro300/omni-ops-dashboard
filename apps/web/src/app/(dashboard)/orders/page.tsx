@@ -160,7 +160,12 @@ function OrdersManagementContent() {
       {
         accessorKey: 'itemCount',
         header: isAr ? 'البنود' : 'Items',
-        cell: ({ row }) => <span className="mono-tabular">{row.original.itemCount}</span>,
+        cell: ({ row }) => (
+          <span className="mono-tabular text-ink-primary">
+            {row.original.itemCount}{' '}
+            {isAr ? (row.original.itemCount === 1 ? 'بند' : 'بنود') : 'items'}
+          </span>
+        ),
       },
       {
         accessorKey: 'totalAmount',
@@ -177,10 +182,19 @@ function OrdersManagementContent() {
         header: isAr ? 'الحالة' : 'Status',
         meta: { sortKey: 'status' },
         cell: ({ row }) => {
-          const st = getBadgeTokenStyles(ORDER_STATUS_TONE[row.original.status]);
+          const solidColors: Record<OrderStatus, string> = {
+            DELIVERED: '#10B981',
+            SHIPPED: '#0284C7',
+            CONFIRMED: '#312E81',
+            PENDING: '#D97706',
+            CANCELLED: '#B91C1C',
+            REFUNDED: '#7E22CE',
+          };
           return (
-            <span className="status-pill" style={st.pill}>
-              <span className="status-dot" style={st.dot} />
+            <span
+              className="mono-tabular inline-flex items-center rounded-pill px-3 py-0.5 text-[11px] font-bold text-white"
+              style={{ backgroundColor: solidColors[row.original.status] ?? '#52525B' }}
+            >
               {row.original.status}
             </span>
           );
@@ -235,17 +249,33 @@ function OrdersManagementContent() {
     <div className="space-y-4 text-start">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-ink-primary">
-            {isAr ? 'إدارة الطلبات (Orders Management)' : 'Orders Management'}
-          </h1>
-          <p className="mt-0.5 text-xs text-ink-secondary">
-            {isAr
-              ? 'إدارة 25,000+ طلب مع دورة حجز وخصم المخزون الذرية والإجراءات الجماعية.'
-              : 'Manage 25,000+ orders with atomic inventory reservation, state machine & bulk transitions.'}
-          </p>
+          <div className="text-[11px] text-ink-secondary">
+            {isAr ? 'العمليات / الطلبات' : 'Operations / Orders'}
+          </div>
+          <div className="mt-0.5 flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold text-ink-primary">
+              {isAr ? 'إدارة الطلبات' : 'Orders Management'}
+            </h1>
+            <span className="mono-tabular rounded-pill bg-primary-soft px-2.5 py-0.5 text-xs font-semibold text-primary">
+              {(data?.meta.total ?? 25003).toLocaleString()} {isAr ? 'طلب' : 'orders'}
+            </span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            aria-label="Filter by warehouse"
+            value={urlWarehouseId}
+            onChange={(e) => setParams({ warehouseId: e.target.value })}
+            className="h-9 rounded-control border border-border bg-surface px-3 text-xs font-medium text-ink-primary outline-none"
+          >
+            <option value="">{isAr ? 'جميع المستودعات' : 'All Warehouses'}</option>
+            {warehouses.map((wh) => (
+              <option key={wh.id} value={wh.id}>
+                {wh.code} — {wh.name}
+              </option>
+            ))}
+          </select>
           <PermissionGate permission={PERMISSIONS.REPORTS_EXPORT}>
             <button
               type="button"
@@ -294,35 +324,42 @@ function OrdersManagementContent() {
           clearParams(['limit', 'sortBy', 'sortDir']);
         }}
         filtersSlot={
-          <>
-            <select
-              aria-label="Filter by order status"
-              value={statusFilter}
-              onChange={(e) => setParams({ status: e.target.value })}
-              className="h-8 rounded-control border border-border bg-canvas px-2.5 text-xs text-ink-primary outline-none focus:border-primary"
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setParams({ status: null })}
+              className={`rounded-pill px-3 py-1 text-[11px] font-bold transition-colors ${
+                !statusFilter
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-subtle text-ink-secondary hover:text-ink-primary'
+              }`}
             >
-              <option value="">{isAr ? 'كل الحالات' : 'All Statuses'}</option>
-              {Object.values(ORDER_STATUSES).map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-
-            <select
-              aria-label="Filter by warehouse"
-              value={urlWarehouseId}
-              onChange={(e) => setParams({ warehouseId: e.target.value })}
-              className="h-8 rounded-control border border-border bg-canvas px-2.5 text-xs text-ink-primary outline-none focus:border-primary"
-            >
-              <option value="">{isAr ? 'كل المستودعات' : 'All Warehouses'}</option>
-              {warehouses.map((wh) => (
-                <option key={wh.id} value={wh.id}>
-                  {wh.code} — {wh.name}
-                </option>
-              ))}
-            </select>
-          </>
+              {isAr ? 'الكل' : 'ALL'}
+            </button>
+            {(
+              [
+                ORDER_STATUSES.REFUNDED,
+                ORDER_STATUSES.CANCELLED,
+                ORDER_STATUSES.PENDING,
+                ORDER_STATUSES.CONFIRMED,
+                ORDER_STATUSES.SHIPPED,
+                ORDER_STATUSES.DELIVERED,
+              ] as const
+            ).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setParams({ status: statusFilter === s ? null : s })}
+                className={`mono-tabular rounded-pill px-3 py-1 text-[11px] font-bold transition-colors ${
+                  statusFilter === s
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-subtle text-ink-secondary hover:text-ink-primary'
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
         }
         bulkActionsSlot={(ids) => (
           <>

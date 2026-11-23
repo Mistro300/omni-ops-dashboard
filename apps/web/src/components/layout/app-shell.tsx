@@ -337,7 +337,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                         className={cn(
                           'flex items-center gap-2.5 rounded-control px-2.5 py-2 text-sm font-medium transition-colors',
                           active
-                            ? 'bg-primary-soft text-primary'
+                            ? 'bg-primary font-semibold text-primary-foreground'
                             : 'text-ink-secondary hover:bg-subtle hover:text-ink-primary',
                           collapsed && 'justify-center px-0',
                         )}
@@ -369,12 +369,21 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
             {!collapsed && (
               <div className="min-w-0 flex-1 text-start">
-                <div className="truncate text-xs font-semibold text-ink-primary">
+                <div className="truncate text-xs font-bold text-ink-primary">
                   {user.fullName}
                 </div>
                 <div className="mt-1">
-                  <span className="status-pill" style={roleStyle.pill}>
-                    <span className="status-dot" style={roleStyle.dot} />
+                  <span
+                    className="mono-tabular inline-flex items-center rounded px-2 py-0.5 text-[10px] font-bold text-white"
+                    style={{
+                      backgroundColor:
+                        user.role === 'ADMIN'
+                          ? '#7E22CE'
+                          : user.role === 'EDITOR'
+                            ? '#312E81'
+                            : '#64748B',
+                    }}
+                  >
                     {user.role}
                   </span>
                 </div>

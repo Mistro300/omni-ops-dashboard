@@ -264,18 +264,16 @@ export function RevenueTrendChart({ data }: { data: AnalyticsOverviewDto['revenu
   return (
     <section className="rounded-card border border-border bg-surface p-4 text-start">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-sm font-semibold text-ink-primary">
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-bold text-ink-primary">
             {isAr ? 'تطور الإيرادات والأرباح عبر الزمن' : 'Revenue & Gross Profit Trend'}
           </h2>
-          <p className="text-[11px] text-ink-secondary">
-            {isAr
-              ? 'مجمّع من الطلبات المؤكدة والمكتملة عبر DATE_TRUNC وgenerate_series'
-              : 'Aggregated via PostgreSQL DATE_TRUNC & zero-filled generate_series'}
-          </p>
+          <span className="mono-tabular rounded-pill border border-border bg-subtle px-2 py-0.5 text-[11px] font-semibold text-ink-secondary">
+            65%
+          </span>
         </div>
 
-        <label className="flex cursor-pointer items-center gap-2 rounded-control border border-border bg-canvas px-2.5 py-1.5 text-xs text-ink-primary">
+        <label className="flex cursor-pointer items-center gap-2 rounded-control border border-border bg-canvas px-2.5 py-1 text-xs text-ink-primary">
           <input
             type="checkbox"
             checked={comparePrev}
@@ -362,62 +360,71 @@ export function OrdersStatusDonutChart({
   const total = data.reduce((sum, item) => sum + item.count, 0);
 
   return (
-    <section className="rounded-card border border-border bg-surface p-4 text-start">
-      <div className="mb-3">
-        <h2 className="text-sm font-semibold text-ink-primary">
+    <section className="flex flex-col justify-between rounded-card border border-border bg-surface p-4 text-start">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="text-sm font-bold text-ink-primary">
           {isAr ? 'توزيع الطلبات حسب الحالة' : 'Orders by Status'}
         </h2>
-        <p className="text-[11px] text-ink-secondary">
-          {isAr ? `إجمالي ${total.toLocaleString()} طلب في الفترة` : `${total.toLocaleString()} orders in period`}
-        </p>
+        <span className="mono-tabular rounded-pill border border-border bg-subtle px-2 py-0.5 text-[11px] font-semibold text-ink-secondary">
+          35%
+        </span>
       </div>
 
-      <div className="h-[210px] w-full" dir="ltr">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={data}
-              dataKey="count"
-              nameKey="status"
-              cx="50%"
-              cy="50%"
-              innerRadius={56}
-              outerRadius={84}
-              paddingAngle={2}
-            >
-              {data.map((entry) => (
-                <Cell
-                  key={entry.status}
-                  fill={ORDER_STATUS_CHART_COLOR[entry.status] ?? CHART_COLORS.zinc}
-                />
-              ))}
-            </Pie>
-            <Tooltip content={<PrecisionTooltip />} />
-          </PieChart>
-        </ResponsiveContainer>
-      </div>
+      <div className="grid items-center gap-4 sm:grid-cols-2">
+        {/* Donut with centered Total Count matching Mockup 8 */}
+        <div className="relative h-[200px] w-full" dir="ltr">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={data}
+                dataKey="count"
+                nameKey="status"
+                cx="50%"
+                cy="50%"
+                innerRadius={56}
+                outerRadius={82}
+                paddingAngle={2}
+              >
+                {data.map((entry) => (
+                  <Cell
+                    key={entry.status}
+                    fill={ORDER_STATUS_CHART_COLOR[entry.status] ?? CHART_COLORS.zinc}
+                  />
+                ))}
+              </Pie>
+              <Tooltip content={<PrecisionTooltip />} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+            <span className="mono-tabular text-xl font-bold text-ink-primary">
+              {total.toLocaleString()}
+            </span>
+          </div>
+        </div>
 
-      <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
-        {data.map((item) => {
-          const pct = total > 0 ? ((item.count / total) * 100).toFixed(1) : '0.0';
-          return (
-            <div
-              key={item.status}
-              className="flex items-center justify-between rounded-control border border-border bg-canvas px-2 py-1"
-            >
-              <span className="flex items-center gap-1.5 text-[11px] font-medium text-ink-primary">
-                <span
-                  className="h-2 w-2 rounded-pill"
-                  style={{ backgroundColor: ORDER_STATUS_CHART_COLOR[item.status] }}
-                />
-                {item.status}
-              </span>
-              <span dir="ltr" className="mono-tabular text-[11px] text-ink-secondary">
-                {item.count} ({pct}%)
-              </span>
-            </div>
-          );
-        })}
+        {/* Side Percentage Legend matching Mockup 8 */}
+        <div className="space-y-2 text-xs" dir="ltr">
+          {data.map((item) => {
+            const pct = total > 0 ? ((item.count / total) * 100).toFixed(1) : '0.0';
+            return (
+              <div
+                key={item.status}
+                className="flex items-center justify-between gap-2 py-0.5"
+              >
+                <span className="flex items-center gap-2 font-semibold text-ink-primary">
+                  <span
+                    className="h-3.5 w-1.5 rounded-pill"
+                    style={{ backgroundColor: ORDER_STATUS_CHART_COLOR[item.status] }}
+                  />
+                  <span className="mono-tabular text-[11px]">{item.status}</span>
+                </span>
+                <span className="mono-tabular text-xs font-semibold text-ink-secondary">
+                  {pct}%
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </section>
   );

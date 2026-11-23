@@ -3,20 +3,15 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  ANALYTICS_GRANULARITIES,
   ANALYTICS_RANGES,
   PERMISSIONS,
-  type AnalyticsGranularity,
   type AnalyticsOverviewDto,
   type AnalyticsRange,
   type ExportReportType,
 } from '@omni-ops/shared';
-import { BarChart3, RefreshCw } from 'lucide-react';
+import { Plus, RefreshCw } from 'lucide-react';
 import { RoutePermissionGuard } from '@/components/rbac/permission-gate';
 import {
-  AnalyticsKpiGrid,
-  OrdersStatusDonutChart,
-  RevenueTrendChart,
   StockFlowBarChart,
   TopProductsBarChart,
   WarehouseComparisonChart,
@@ -31,16 +26,14 @@ export default function AnalyticsPage() {
   const { locale, activeWarehouseId } = useUi();
   const isAr = locale === 'ar';
 
-  const [range, setRange] = useState<AnalyticsRange>('90d');
-  const [granularity, setGranularity] = useState<AnalyticsGranularity | ''>('');
+  const [range, setRange] = useState<AnalyticsRange>('30d');
   const [topProductsBy, setTopProductsBy] = useState<'revenue' | 'quantity'>('revenue');
   const [quickExportType, setQuickExportType] = useState<ExportReportType | null>(null);
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: ['analytics-deep', { range, granularity, activeWarehouseId, topProductsBy }],
+    queryKey: ['analytics-deep', { range, activeWarehouseId, topProductsBy }],
     queryFn: () => {
       const sp = new URLSearchParams({ range, topProductsBy });
-      if (granularity) sp.set('granularity', granularity);
       if (activeWarehouseId !== 'ALL') sp.set('warehouseId', activeWarehouseId);
       return apiFetch<AnalyticsOverviewDto>(`/analytics/overview?${sp.toString()}`);
     },
@@ -48,14 +41,16 @@ export default function AnalyticsPage() {
 
   return (
     <RoutePermissionGuard permission={PERMISSIONS.ANALYTICS_READ}>
-      <div className="space-y-5 text-start">
-        {/* Header & Controls */}
+      <div className="space-y-4 text-start">
+        {/* Top Title + Redis Cache HIT Badge matching Mockup 3 */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-primary" />
-              <h1 className="text-xl font-bold text-ink-primary">
-                {isAr ? 'التحليلات المتقدمة (Analytics Center)' : 'Advanced Analytics Center'}
+            <div className="text-[11px] text-ink-secondary">
+              {isAr ? 'الرئيسية / التقارير / التحليلات والتصدير' : 'Home / Reports / Analytics & Exports'}
+            </div>
+            <div className="mt-0.5 flex flex-wrap items-center gap-2.5">
+              <h1 className="text-2xl font-bold text-ink-primary">
+                {isAr ? 'التحليلات المتقدمة' : 'Advanced Analytics'}
               </h1>
               {data?.meta && (
                 <span
@@ -70,61 +65,43 @@ export default function AnalyticsPage() {
                 </span>
               )}
             </div>
-            <p className="mt-0.5 text-xs text-ink-secondary">
-              {isAr
-                ? 'جميع الرسوم البيانية الخمسة مع مقارنة الفترات وتبديل الإيراد/الكمية وتكامل Redis Caching.'
-                : 'All 5 interactive analytics charts with period comparison, metric toggles & Redis caching.'}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex rounded-control border border-border bg-surface p-0.5 text-xs">
-              {ANALYTICS_RANGES.map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => {
-                    setRange(r);
-                    setGranularity('');
-                  }}
-                  className={`mono-tabular rounded-control px-2.5 py-1 font-medium ${
-                    range === r
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-ink-secondary hover:text-ink-primary'
-                  }`}
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
-
-            <select
-              aria-label="Analytics granularity"
-              value={granularity}
-              onChange={(e) => setGranularity(e.target.value as AnalyticsGranularity | '')}
-              className="h-8 rounded-control border border-border bg-surface px-2.5 text-xs text-ink-primary outline-none"
-            >
-              <option value="">{isAr ? 'تجميع تلقائي' : 'Auto bucket'}</option>
-              {ANALYTICS_GRANULARITIES.map((g) => (
-                <option key={g} value={g}>
-                  {g === 'day' ? (isAr ? 'يومي' : 'Daily') : g === 'week' ? (isAr ? 'أسبوعي' : 'Weekly') : isAr ? 'شهري' : 'Monthly'}
-                </option>
-              ))}
-            </select>
           </div>
         </div>
 
+        {/* Sub-Toolbar: Range Segmented Pills (Right) + "+ تصدير تقرير جديد" (Left) matching Mockup 3 */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="inline-flex rounded-control border border-border bg-surface p-0.5 text-xs">
+            {ANALYTICS_RANGES.map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setRange(r)}
+                className={`mono-tabular rounded-control px-3 py-1.5 font-semibold transition-colors ${
+                  range === r
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-ink-secondary hover:text-ink-primary'
+                }`}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setQuickExportType('orders')}
+            className="inline-flex items-center gap-1.5 rounded-control bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary-hover"
+          >
+            <Plus className="h-4 w-4" />
+            {isAr ? 'تصدير تقرير جديد' : 'New Report Export'}
+          </button>
+        </div>
+
         {isLoading ? (
-          <div className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-32 animate-pulse rounded-card bg-subtle" />
-              ))}
-            </div>
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div className="h-80 animate-pulse rounded-card bg-subtle" />
-              <div className="h-80 animate-pulse rounded-card bg-subtle" />
-            </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-80 animate-pulse rounded-card bg-subtle" />
+            ))}
           </div>
         ) : error || !data ? (
           <div className="rounded-card border border-border bg-surface p-8 text-center">
@@ -144,18 +121,9 @@ export default function AnalyticsPage() {
           <>
             {isFetching && <div className="h-0.5 w-full animate-pulse rounded bg-primary" />}
 
-            {/* 4 KPI Cards */}
-            <AnalyticsKpiGrid data={data} />
-
-            {/* Chart 1 (Revenue Trend) + Chart 2 (Orders Donut) */}
-            <div className="grid gap-5 lg:grid-cols-3">
-              <div className="lg:col-span-2">
-                <RevenueTrendChart data={data.revenueTrend} />
-              </div>
-              <OrdersStatusDonutChart data={data.ordersByStatus} />
-            </div>
-
-            {/* Chart 3 (Top 10 Products) + Chart 4 (Warehouse Comparison) */}
+            {/* 2x2 Grid Layout matching Mockup 3:
+                Row 1: Top 10 Products (Right in RTL) + Warehouse Sales vs Stock (Left in RTL)
+                Row 2: Stock Movement Flow (Right in RTL) + Export Jobs Center (Left in RTL) */}
             <div className="grid gap-5 lg:grid-cols-2">
               <TopProductsBarChart
                 data={data.topProducts}
@@ -165,13 +133,12 @@ export default function AnalyticsPage() {
               <WarehouseComparisonChart data={data.warehouseComparison} />
             </div>
 
-            {/* Chart 5 (Stock In vs Stock Out Dual Bar) */}
-            <StockFlowBarChart data={data.stockMovementFlow} />
+            <div className="grid gap-5 lg:grid-cols-2">
+              <StockFlowBarChart data={data.stockMovementFlow} />
+              <ExportJobsPanel onQuickExport={(type) => setQuickExportType(type)} />
+            </div>
           </>
         )}
-
-        {/* Phase 5: Export Jobs Center (BullMQ + MinIO) */}
-        <ExportJobsPanel onQuickExport={(type) => setQuickExportType(type)} />
 
         {quickExportType && (
           <ExportModal

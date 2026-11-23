@@ -241,16 +241,19 @@ function ProductsCatalogContent() {
         header: isAr ? 'المتاح / الإجمالي' : 'Available / On Hand',
         cell: ({ row }) => {
           const s = getBadgeTokenStyles(INVENTORY_STATUS_TONE[row.original.stockHealth]);
+          const isOut = row.original.stockHealth === 'OUT_OF_STOCK';
           return (
-            <div className="flex items-center gap-2">
-              <span dir="ltr" className="mono-tabular font-semibold text-ink-primary">
-                {row.original.totalAvailable} / {row.original.totalOnHand}
+            <span
+              className="status-pill px-3 py-1 font-semibold"
+              style={s.pill}
+            >
+              <span>{healthLabel(row.original.stockHealth)}</span>
+              <span dir="ltr" className="mono-tabular ms-1">
+                {isOut
+                  ? '/ 0'
+                  : `${row.original.totalAvailable} / ${row.original.totalOnHand}`}
               </span>
-              <span className="status-pill" style={s.pill}>
-                <span className="status-dot" style={s.dot} />
-                {healthLabel(row.original.stockHealth)}
-              </span>
-            </div>
+            </span>
           );
         },
       },
@@ -377,14 +380,17 @@ function ProductsCatalogContent() {
     <div className="space-y-4 text-start">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-ink-primary">
-            {isAr ? 'دليل المنتجات (Products Catalog)' : 'Products Catalog'}
-          </h1>
-          <p className="mt-0.5 text-xs text-ink-secondary">
-            {isAr
-              ? 'إدارة المنتجات، التسعير، ومستويات التوفر مع مزامنة الفلاتر عبر الرابط.'
-              : 'Server-side catalog with URL-synced filtering, sorting, and bulk actions.'}
-          </p>
+          <div className="text-[11px] text-ink-secondary">
+            {isAr ? 'العمليات / المنتجات' : 'Operations / Products'}
+          </div>
+          <div className="mt-0.5 flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold text-ink-primary">
+              {isAr ? 'دليل المنتجات' : 'Products Catalog'}
+            </h1>
+            <span className="mono-tabular rounded-pill bg-subtle px-2.5 py-0.5 text-xs font-semibold text-ink-secondary">
+              {data?.meta.total ?? 500} {isAr ? 'منتج' : 'SKUs'}
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <PermissionGate permission={PERMISSIONS.REPORTS_EXPORT}>
