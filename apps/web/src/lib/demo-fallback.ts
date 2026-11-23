@@ -109,13 +109,33 @@ export function resolveCloudflareDemoFallback<T>(
   if (cleanPath === '/auth/login' && method === 'POST') {
     const body = (options.body ?? {}) as { email?: string };
     activeDemoUser = buildDemoUser(body.email);
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem('omniops_cf_logged_out');
+      window.sessionStorage.setItem('omniops_cf_demo_email', activeDemoUser.email);
+    }
     return {
       accessToken: `cf-pages-demo-token-${activeDemoUser.role.toLowerCase()}`,
       user: activeDemoUser,
     } as T;
   }
 
+  if (cleanPath === '/auth/logout' && method === 'POST') {
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem('omniops_cf_logged_out', '1');
+    }
+    return { loggedOut: true } as T;
+  }
+
   if (cleanPath === '/auth/refresh' && method === 'POST') {
+    if (typeof window !== 'undefined') {
+      if (window.sessionStorage.getItem('omniops_cf_logged_out') === '1') {
+        throw new Error('Logged out of demo session');
+      }
+      const savedEmail = window.sessionStorage.getItem('omniops_cf_demo_email');
+      if (savedEmail) {
+        activeDemoUser = buildDemoUser(savedEmail);
+      }
+    }
     return {
       accessToken: `cf-pages-demo-token-${activeDemoUser.role.toLowerCase()}`,
       user: activeDemoUser,

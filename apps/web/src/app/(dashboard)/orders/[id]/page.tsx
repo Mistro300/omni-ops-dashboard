@@ -22,7 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
 import { PermissionGate, RoutePermissionGuard } from '@/components/rbac/permission-gate';
 import {
   apiFetch,
@@ -36,6 +36,11 @@ import { getBadgeTokenStyles, ORDER_STATUS_TONE } from '@/styles/status-badges';
 
 export default function OrderDetailPage() {
   const params = useParams<{ id: string }>();
+  const pathname = usePathname();
+  const orderId =
+    params.id && params.id !== 'default'
+      ? params.id
+      : (pathname?.split('/').filter(Boolean).pop() ?? params.id);
   const { locale } = useUi();
   const { can } = useAuth();
   const { pushToast } = useToast();
@@ -75,21 +80,21 @@ export default function OrderDetailPage() {
   };
 
   const { data: order, isLoading, error } = useQuery({
-    queryKey: ['order-detail', params.id],
-    queryFn: () => apiFetch<OrderDetailDto>(`/orders/${params.id}`),
-    enabled: Boolean(params.id),
+    queryKey: ['order-detail', orderId],
+    queryFn: () => apiFetch<OrderDetailDto>(`/orders/${orderId}`),
+    enabled: Boolean(orderId),
   });
 
   const transitionMutation = useMutation({
     mutationFn: (payload: { toStatus: OrderStatus; reason?: string; restock?: boolean }) =>
-      apiFetch<OrderDetailDto>(`/orders/${params.id}/status`, {
+      apiFetch<OrderDetailDto>(`/orders/${orderId}/status`, {
         method: 'POST',
         body: payload,
       }),
     onSuccess: (updated) => {
       setSensitiveTarget(null);
       setReason('');
-      queryClient.setQueryData(['order-detail', params.id], updated);
+      queryClient.setQueryData(['order-detail', orderId], updated);
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       void queryClient.invalidateQueries({ queryKey: ['inventory-levels'] });
       void queryClient.invalidateQueries({ queryKey: ['stock-movements'] });

@@ -2,6 +2,23 @@ import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFile
 import { join } from 'node:path';
 
 const nextDir = join(process.cwd(), '.next');
+const outDir = join(process.cwd(), 'out');
+
+// If Next.js built a static export (CF_PAGES=1 / STATIC_EXPORT=1 -> out/),
+// mirror out/ into .next/ because Cloudflare Pages is configured with output directory "apps/web/.next"
+if (existsSync(outDir)) {
+  rmSync(nextDir, { recursive: true, force: true });
+  mkdirSync(nextDir, { recursive: true });
+  cpSync(outDir, nextDir, { recursive: true });
+
+  const redirectsContent = [
+    '/orders/* /orders/default.html 200',
+    '/products/* /products/default.html 200',
+  ].join('\n');
+  writeFileSync(join(nextDir, '_redirects'), `${redirectsContent}\n`, 'utf8');
+  console.log('[prepare-cloudflare-pages] Mirrored static export (out/) into .next/ with _redirects for Cloudflare Pages.');
+  process.exit(0);
+}
 
 if (!existsSync(nextDir)) {
   console.log('[prepare-cloudflare-pages] .next directory not found, skipping.');
@@ -31,35 +48,3 @@ function pruneOversizedFiles(dir) {
   }
 }
 pruneOversizedFiles(nextDir);
-
-// 3. Mirror .next/static -> .next/_next/static so Cloudflare Pages serves /_next/static/* directly
-const staticSrc = join(nextDir, 'static');
-const staticDest = join(nextDir, '_next', 'static');
-if (existsSync(staticSrc)) {
-  mkdirSync(staticDest, { recursive: true });
-  cpSync(staticSrc, staticDest, { recursive: true });
-  console.log('[prepare-cloudflare-pages] Copied .next/static -> .next/_next/static');
-}
-
-// 4. Copy prerendered HTML & RSC payloads from .next/server/app to .next/ root for Cloudflare Pages static routing
-const serverAppDir = join(nextDir, 'server', 'app');
-if (existsSync(serverAppDir)) {
-  for (const entry of readdirSync(serverAppDir, { withFileTypes: true })) {
-    if (entry.isFile() && (entry.name.endsWith('.html') || entry.name.endsWith('.rsc'))) {
-      cpSync(join(serverAppDir, entry.name), join(nextDir, entry.name));
-    }
-  }
-  const notFoundHtml = join(serverAppDir, '_not-found.html');
-  if (existsSync(notFoundHtml)) {
-    cpSync(notFoundHtml, join(nextDir, '404.html'));
-  }
-  console.log('[prepare-cloudflare-pages] Staged prerendered HTML routes into .next root.');
-}
-
-// 5. Write Cloudflare Pages _redirects for dynamic client-rendered routes
-const redirectsContent = [
-  '/orders/* /orders.html 200',
-  '/products/* /products.html 200',
-].join('\n');
-writeFileSync(join(nextDir, '_redirects'), `${redirectsContent}\n`, 'utf8');
-console.log('[prepare-cloudflare-pages] Wrote .next/_redirects for Cloudflare Pages.');

@@ -11,7 +11,7 @@ import {
 } from '@omni-ops/shared';
 import { ArrowLeft, ArrowLeftRight, Building2, History, SlidersHorizontal } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
 import { PermissionGate, RoutePermissionGuard } from '@/components/rbac/permission-gate';
 import { StockAdjustmentModal, StockTransferModal } from '@/features/inventory/inventory-modals';
 import { apiFetch } from '@/lib/api-client';
@@ -24,6 +24,11 @@ import {
 
 export default function ProductDetailPage() {
   const params = useParams<{ id: string }>();
+  const pathname = usePathname();
+  const productId =
+    params.id && params.id !== 'default'
+      ? params.id
+      : (pathname?.split('/').filter(Boolean).pop() ?? params.id);
   const { locale } = useUi();
   const isAr = locale === 'ar';
 
@@ -31,9 +36,9 @@ export default function ProductDetailPage() {
   const [transferTarget, setTransferTarget] = useState<InventoryLevelDto | null>(null);
 
   const { data: product, isLoading, error } = useQuery({
-    queryKey: ['product-detail', params.id],
-    queryFn: () => apiFetch<ProductDetailDto>(`/products/${params.id}`),
-    enabled: Boolean(params.id),
+    queryKey: ['product-detail', productId],
+    queryFn: () => apiFetch<ProductDetailDto>(`/products/${productId}`),
+    enabled: Boolean(productId),
   });
 
   const { data: warehouses = [] } = useQuery({

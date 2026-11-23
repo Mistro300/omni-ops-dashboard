@@ -4,6 +4,13 @@ import { resolveCloudflareDemoFallback } from './demo-fallback';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
 const DEMO_MODE_ENABLED = process.env.NEXT_PUBLIC_DEMO_MODE !== 'false';
 
+function isRemoteCloudflareDemoHost(): boolean {
+  if (!DEMO_MODE_ENABLED || typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  const isLocalHost = host === 'localhost' || host === '127.0.0.1';
+  return !isLocalHost && API_BASE.includes('localhost');
+}
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -32,6 +39,19 @@ export function getAccessToken(): string | null {
  * falsely trigger Refresh Token Reuse Detection.
  */
 export async function performSingleFlightRefresh(): Promise<AuthResponse | null> {
+  if (isRemoteCloudflareDemoHost()) {
+    try {
+      const data = resolveCloudflareDemoFallback<AuthResponse>('/auth/refresh', {
+        method: 'POST',
+      });
+      inMemoryAccessToken = data.accessToken;
+      return data;
+    } catch {
+      inMemoryAccessToken = null;
+      return null;
+    }
+  }
+
   if (!singleFlightRefresh) {
     singleFlightRefresh = (async () => {
       try {
@@ -77,6 +97,13 @@ export interface ApiRequestOptions extends Omit<RequestInit, 'body'> {
 
 export async function apiFetch<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const { body, skipAuthRefresh = false, headers, ...rest } = options;
+
+  if (isRemoteCloudflareDemoHost()) {
+    return resolveCloudflareDemoFallback<T>(path, {
+      method: rest.method,
+      body,
+    });
+  }
 
   const buildHeaders = (): HeadersInit => {
     const h: Record<string, string> = {
@@ -172,6 +199,20 @@ export async function apiFetchExportOrBlob<TJson = unknown>(
 ): Promise<ExportOrBlobResult<TJson>> {
   const { body, skipAuthRefresh = false, headers, fallbackFilename = 'omniops-export', ...rest } =
     options;
+
+  if (isRemoteCloudflareDemoHost()) {
+    const demoBlob = new Blob(
+      ['SKU,Product,Warehouse,Available,Status\nPRD-2026-0001,Industrial Sensor Pro X1,WH-CAI-01,126,IN_STOCK\n'],
+      { type: 'text/csv;charset=utf-8' },
+    );
+    return {
+      kind: 'blob',
+      blob: demoBlob,
+      filename: fallbackFilename,
+      contentType: 'text/csv',
+      rowCount: 500,
+    };
+  }
 
   const buildHeaders = (): HeadersInit => {
     const h: Record<string, string> = {
