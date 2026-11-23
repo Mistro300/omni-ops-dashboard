@@ -447,6 +447,7 @@ export function resolveCloudflareDemoFallback<T>(
 
   if (cleanPath === '/users') {
     const users: UserListItemDto[] = [
+      buildDemoUser('ahmedalzaeem2416@gmail.com'),
       buildDemoUser('admin@omniops.dev'),
       buildDemoUser('editor@omniops.dev'),
       buildDemoUser('viewer@omniops.dev'),

@@ -122,6 +122,15 @@ async function main() {
         role: UserRole.EDITOR,
         status: UserStatus.ACTIVE,
       },
+      {
+        id: randomUUID(),
+        email: 'ahmedalzaeem2416@gmail.com',
+        passwordHash,
+        fullName: 'Ahmed Al-Zaeem (Owner Admin)',
+        role: UserRole.ADMIN,
+        status: UserStatus.ACTIVE,
+        lastLoginAt: new Date(),
+      },
     ],
   });
 
