@@ -365,7 +365,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             )}
           >
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control bg-subtle text-xs font-semibold text-ink-primary">
-              {user.fullName.slice(0, 2).toUpperCase()}
+              {(user.fullName || 'OO').slice(0, 2).toUpperCase()}
             </div>
             {!collapsed && (
               <div className="min-w-0 flex-1 text-start">

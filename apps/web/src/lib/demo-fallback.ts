@@ -167,12 +167,17 @@ function buildDemoUser(email?: string): AuthUser {
     : lower.includes('editor')
       ? ROLES.EDITOR
       : ROLES.ADMIN;
+  const savedCustomName =
+    typeof window !== 'undefined' && role === ROLES.ADMIN
+      ? window.localStorage.getItem('omniops_cf_demo_fullname')
+      : null;
   const fullName =
-    role === ROLES.ADMIN
+    savedCustomName ||
+    (role === ROLES.ADMIN
       ? 'Mohamed Bahaa'
       : role === ROLES.EDITOR
         ? 'أحمد السيد'
-        : 'سارة محمود';
+        : 'سارة محمود');
 
   return {
     id: `usr-demo-${role.toLowerCase()}`,
@@ -234,6 +239,42 @@ export function resolveCloudflareDemoFallback<T>(
     return activeDemoUser as T;
   }
 
+  if (cleanPath === '/auth/profile' && method === 'PATCH') {
+    const body = (options.body ?? {}) as { fullName?: string };
+    const nextName = body.fullName?.trim() || activeDemoUser.fullName;
+    activeDemoUser = {
+      ...activeDemoUser,
+      fullName: nextName,
+    };
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('omniops_cf_demo_fullname', nextName);
+    }
+    return activeDemoUser as T;
+  }
+
+  if (cleanPath === '/auth/change-password' && method === 'POST') {
+    return { message: 'تم تحديث كلمة المرور بنجاح (Password updated)' } as T;
+  }
+
+  if (cleanPath === '/auth/forgot-password' && method === 'POST') {
+    return {
+      message: 'تم إنشاء رمز استعادة كلمة المرور',
+      resetToken: 'demo-reset-token-2026',
+    } as T;
+  }
+
+  if (cleanPath === '/auth/reset-password' && method === 'POST') {
+    return { reset: true } as T;
+  }
+
+  if (cleanPath === '/auth/sessions/revoke-others' && method === 'POST') {
+    return { revokedCount: 1 } as T;
+  }
+
+  if (cleanPath.startsWith('/auth/sessions/') && method === 'DELETE') {
+    return { revoked: true } as T;
+  }
+
   if (cleanPath === '/auth/context') {
     return {
       warehouses: DEMO_WAREHOUSES,
@@ -282,10 +323,68 @@ export function resolveCloudflareDemoFallback<T>(
   }
 
   if (cleanPath === '/warehouses') {
+    if (method === 'POST') {
+      const b = (options.body ?? {}) as Partial<WarehouseDto>;
+      const created: WarehouseDto = {
+        id: `w-custom-${Date.now()}`,
+        code: (b.code ?? 'WH-NEW-06').toUpperCase(),
+        name: b.name ?? 'مستودع إقليمي جديد',
+        location: b.location ?? 'القاهرة، مصر',
+        isActive: b.isActive ?? true,
+        skuCount: 500,
+        totalUnits: 12500,
+        createdAt: new Date().toISOString(),
+      };
+      DEMO_WAREHOUSES.unshift(created);
+      return created as T;
+    }
     return DEMO_WAREHOUSES as T;
   }
 
+  if (cleanPath.startsWith('/warehouses/') && method === 'PATCH') {
+    const id = cleanPath.replace('/warehouses/', '');
+    const b = (options.body ?? {}) as Partial<WarehouseDto>;
+    const idx = DEMO_WAREHOUSES.findIndex((w) => w.id === id);
+    if (idx !== -1) {
+      DEMO_WAREHOUSES[idx] = { ...DEMO_WAREHOUSES[idx]!, ...b };
+      return DEMO_WAREHOUSES[idx] as T;
+    }
+    return DEMO_WAREHOUSES[0] as T;
+  }
+
+  if (cleanPath === '/products/bulk-status' && method === 'POST') {
+    const b = (options.body ?? {}) as { ids?: string[]; isActive?: boolean };
+    const ids = b.ids ?? [];
+    for (const p of DEMO_PRODUCTS) {
+      if (ids.includes(p.id) && typeof b.isActive === 'boolean') {
+        p.isActive = b.isActive;
+      }
+    }
+    return { succeededIds: ids, failed: [] } as T;
+  }
+
   if (cleanPath === '/products') {
+    if (method === 'POST') {
+      const b = (options.body ?? {}) as Partial<ProductListItemDto>;
+      const cat = DEMO_CATEGORIES.find((c) => c.id === b.categoryId) ?? DEMO_CATEGORIES[0]!;
+      const created: ProductListItemDto = {
+        id: `prd-custom-${Date.now()}`,
+        sku: (b.sku ?? `PRD-2026-${Math.floor(1000 + Math.random() * 9000)}`).toUpperCase(),
+        name: b.name ?? 'منتج صناعي جديد',
+        categoryId: cat.id,
+        categoryName: cat.name,
+        unitCost: Number(b.unitCost ?? 50),
+        unitPrice: Number(b.unitPrice ?? 85),
+        isActive: b.isActive ?? true,
+        totalOnHand: 100,
+        totalReserved: 0,
+        totalAvailable: 100,
+        stockHealth: 'IN_STOCK',
+        updatedAt: new Date().toISOString(),
+      };
+      DEMO_PRODUCTS.unshift(created);
+      return created as T;
+    }
     const response: OffsetPaginatedResponse<ProductListItemDto> = {
       data: DEMO_PRODUCTS,
       meta: {
@@ -302,7 +401,20 @@ export function resolveCloudflareDemoFallback<T>(
 
   if (cleanPath.startsWith('/products/')) {
     const id = cleanPath.replace('/products/', '');
-    const found = DEMO_PRODUCTS.find((p) => p.id === id) ?? DEMO_PRODUCTS[0]!;
+    const idx = DEMO_PRODUCTS.findIndex((p) => p.id === id);
+    if (method === 'PATCH') {
+      const b = (options.body ?? {}) as Partial<ProductListItemDto>;
+      if (idx !== -1) {
+        DEMO_PRODUCTS[idx] = { ...DEMO_PRODUCTS[idx]!, ...b, updatedAt: new Date().toISOString() };
+        return DEMO_PRODUCTS[idx] as T;
+      }
+      return DEMO_PRODUCTS[0] as T;
+    }
+    if (method === 'DELETE') {
+      if (idx !== -1) DEMO_PRODUCTS.splice(idx, 1);
+      return { deleted: true } as T;
+    }
+    const found = DEMO_PRODUCTS[idx] ?? DEMO_PRODUCTS[0]!;
     const detail: ProductDetailDto = {
       ...found,
       createdAt: '2026-02-01T10:00:00.000Z',
@@ -334,6 +446,20 @@ export function resolveCloudflareDemoFallback<T>(
       ],
     };
     return detail as T;
+  }
+
+  if (cleanPath === '/inventory/adjust' && method === 'POST') {
+    const b = (options.body ?? {}) as { productId?: string; mode?: 'ADD' | 'DEDUCT'; quantity?: number };
+    const p = DEMO_PRODUCTS.find((item) => item.id === b.productId) ?? DEMO_PRODUCTS[0]!;
+    const delta = (b.mode === 'DEDUCT' ? -1 : 1) * Number(b.quantity ?? 10);
+    p.totalOnHand = Math.max(p.totalReserved, p.totalOnHand + delta);
+    p.totalAvailable = Math.max(0, p.totalOnHand - p.totalReserved);
+    p.stockHealth = p.totalAvailable === 0 ? 'OUT_OF_STOCK' : p.totalAvailable <= 15 ? 'LOW_STOCK' : 'IN_STOCK';
+    return { adjusted: true, balanceAfter: p.totalOnHand } as T;
+  }
+
+  if (cleanPath === '/inventory/transfer' && method === 'POST') {
+    return { transferred: true } as T;
   }
 
   if (cleanPath === '/inventory') {
@@ -434,7 +560,73 @@ export function resolveCloudflareDemoFallback<T>(
     return response as T;
   }
 
+  if (cleanPath === '/orders/bulk-status' && method === 'POST') {
+    const b = (options.body ?? {}) as { ids?: string[]; toStatus?: OrderStatus };
+    const ids = b.ids ?? [];
+    for (const o of DEMO_ORDERS) {
+      if (ids.includes(o.id) && b.toStatus) {
+        o.status = b.toStatus;
+      }
+    }
+    return { succeededIds: ids, failed: [] } as T;
+  }
+
   if (cleanPath === '/orders') {
+    if (method === 'POST') {
+      const b = (options.body ?? {}) as {
+        warehouseId?: string;
+        items?: Array<{ productId: string; quantity: number }>;
+      };
+      const wh = DEMO_WAREHOUSES.find((w) => w.id === b.warehouseId) ?? DEMO_WAREHOUSES[0]!;
+      const createdId = `ord-demo-${String(DEMO_ORDERS.length + 1).padStart(4, '0')}`;
+      const newOrder: OrderListItemDto = {
+        id: createdId,
+        orderNumber: `ORD-2026-${Math.floor(18850 + Math.random() * 900)}`,
+        customerId: 'cust-demo-1',
+        customerName: 'أحمد محمد',
+        customerCompany: 'مجموعة الفطيم',
+        warehouseId: wh.id,
+        warehouseCode: wh.code,
+        warehouseName: wh.name,
+        status: 'PENDING',
+        itemCount: b.items?.length ?? 1,
+        subtotal: 250,
+        discountAmount: 0,
+        taxAmount: 35,
+        totalAmount: 285,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      DEMO_ORDERS.unshift(newOrder);
+      return {
+        ...newOrder,
+        customerEmail: 'a.marri@alfuttaim.com',
+        customerPhone: '+971 50 123 4567',
+        cancellationReason: null,
+        restockedOnRefund: false,
+        createdByName: activeDemoUser.fullName,
+        items: DEMO_PRODUCTS.slice(0, 2).map((p, idx) => ({
+          id: `oi-new-${idx + 1}`,
+          productId: p.id,
+          productSku: p.sku,
+          productName: p.name,
+          quantity: 1,
+          unitPriceSnapshot: p.unitPrice,
+          unitCostSnapshot: p.unitCost,
+          lineTotal: p.unitPrice,
+        })),
+        statusHistory: [
+          {
+            id: `sh-new-1`,
+            fromStatus: null,
+            toStatus: 'PENDING',
+            reason: 'إنشاء الطلب مع حجز المخزون ذرياً',
+            changedByName: activeDemoUser.fullName,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      } as T;
+    }
     const queryStr = path.split('?')[1] ?? '';
     const sp = new URLSearchParams(queryStr);
     const statusFilter = sp.get('status');
@@ -456,8 +648,16 @@ export function resolveCloudflareDemoFallback<T>(
   }
 
   if (cleanPath.startsWith('/orders/')) {
+    const isStatusTransition = cleanPath.endsWith('/status') && method === 'POST';
     const id = cleanPath.replace('/orders/', '').replace('/status', '');
     const ord = DEMO_ORDERS.find((o) => o.id === id) ?? DEMO_ORDERS[0]!;
+    if (isStatusTransition) {
+      const b = (options.body ?? {}) as { toStatus?: OrderStatus; reason?: string };
+      if (b.toStatus) {
+        ord.status = b.toStatus;
+        ord.updatedAt = new Date().toISOString();
+      }
+    }
     const detail: OrderDetailDto = {
       ...ord,
       customerEmail: 'a.marri@alfuttaim.com',
@@ -497,7 +697,34 @@ export function resolveCloudflareDemoFallback<T>(
     return detail as T;
   }
 
+  if (cleanPath.startsWith('/customers/') && (method === 'PATCH' || method === 'DELETE')) {
+    const b = (options.body ?? {}) as Partial<CustomerListItemDto>;
+    return {
+      id: cleanPath.replace('/customers/', ''),
+      name: b.name ?? 'أحمد المري',
+      companyName: b.companyName ?? 'مجموعة الفطيم',
+      email: b.email ?? 'a.marri@alfuttaim.com',
+      phone: b.phone ?? '+971 50 123 4567',
+      orderCount: 42,
+      totalSpent: 84200,
+      createdAt: '2026-02-15T10:00:00.000Z',
+    } as T;
+  }
+
   if (cleanPath === '/customers') {
+    if (method === 'POST') {
+      const b = (options.body ?? {}) as Partial<CustomerListItemDto>;
+      return {
+        id: `cust-demo-${Date.now()}`,
+        name: b.name ?? 'عميل جديد',
+        companyName: b.companyName ?? 'شركة أعمال',
+        email: b.email ?? 'client@company.com',
+        phone: b.phone ?? '+966 50 123 4567',
+        orderCount: 0,
+        totalSpent: 0,
+        createdAt: new Date().toISOString(),
+      } as T;
+    }
     const customerSeed: CustomerListItemDto[] = [
       { id: 'cust-demo-1', name: 'أحمد المري', companyName: 'مجموعة الفطيم', email: 'a.marri@alfuttaim.com', phone: '+971 50 123 4567', orderCount: 42, totalSpent: 84200, createdAt: '2026-02-15T10:00:00.000Z' },
       { id: 'cust-demo-2', name: 'سارة الجابري', companyName: 'اتصالات', email: 's.jabri@etisalat.ae', phone: '+971 50 987 6543', orderCount: 28, totalSpent: 56400, createdAt: '2026-02-18T10:00:00.000Z' },
@@ -520,9 +747,43 @@ export function resolveCloudflareDemoFallback<T>(
     return response as T;
   }
 
+  if (cleanPath.startsWith('/users/') && cleanPath.endsWith('/revoke-sessions') && method === 'POST') {
+    return { revokedCount: 1 } as T;
+  }
+
+  if (cleanPath.startsWith('/users/') && method === 'PATCH') {
+    const b = (options.body ?? {}) as Partial<UserListItemDto>;
+    if (b.fullName && cleanPath.endsWith('u-1')) {
+      activeDemoUser = { ...activeDemoUser, fullName: b.fullName };
+    }
+    return {
+      id: cleanPath.replace('/users/', ''),
+      fullName: b.fullName ?? activeDemoUser.fullName,
+      email: 'mohamed@omniops.com',
+      role: b.role ?? ROLES.ADMIN,
+      status: b.status ?? 'ACTIVE',
+      activeSessionsCount: 1,
+      lastLoginAt: new Date().toISOString(),
+      createdAt: '2026-01-01T09:00:00.000Z',
+    } as T;
+  }
+
   if (cleanPath === '/users') {
+    if (method === 'POST') {
+      const b = (options.body ?? {}) as Partial<UserListItemDto>;
+      return {
+        id: `u-new-${Date.now()}`,
+        fullName: b.fullName ?? 'مستخدم جديد',
+        email: b.email ?? 'user@omniops.com',
+        role: b.role ?? ROLES.EDITOR,
+        status: 'ACTIVE',
+        activeSessionsCount: 0,
+        lastLoginAt: null,
+        createdAt: new Date().toISOString(),
+      } as T;
+    }
     const users: UserListItemDto[] = [
-      { id: 'u-1', fullName: 'Mohamed Bahaa', email: 'mohamed@omniops.com', role: ROLES.ADMIN, status: 'ACTIVE', activeSessionsCount: 2, lastLoginAt: '2026-11-23T21:00:00.000Z', createdAt: '2026-01-01T09:00:00.000Z' },
+      { id: 'u-1', fullName: activeDemoUser.fullName, email: 'mohamed@omniops.com', role: ROLES.ADMIN, status: 'ACTIVE', activeSessionsCount: 2, lastLoginAt: '2026-11-23T21:00:00.000Z', createdAt: '2026-01-01T09:00:00.000Z' },
       { id: 'u-2', fullName: 'أحمد السيد', email: 'ahmed.elsayed@omniops.com', role: ROLES.EDITOR, status: 'ACTIVE', activeSessionsCount: 1, lastLoginAt: '2026-11-23T18:30:00.000Z', createdAt: '2026-01-05T09:00:00.000Z' },
       { id: 'u-3', fullName: 'سارة محمود', email: 'sara.mahmoud@omniops.com', role: ROLES.VIEWER, status: 'ACTIVE', activeSessionsCount: 1, lastLoginAt: '2026-11-22T14:15:00.000Z', createdAt: '2026-01-10T09:00:00.000Z' },
       { id: 'u-4', fullName: 'عمر خالد', email: 'omar.khaled@omniops.com', role: ROLES.EDITOR, status: 'ACTIVE', activeSessionsCount: 3, lastLoginAt: '2026-11-23T20:45:00.000Z', createdAt: '2026-01-15T09:00:00.000Z' },
@@ -750,6 +1011,23 @@ export function resolveCloudflareDemoFallback<T>(
       ],
     };
     return overview as T;
+  }
+
+  if (cleanPath.startsWith('/reports/jobs/') && cleanPath.endsWith('/retry') && method === 'POST') {
+    return {
+      id: 'orders_2026.xlsx',
+      requestedById: activeDemoUser.id,
+      requestedByName: activeDemoUser.fullName,
+      reportType: 'orders',
+      format: 'XLSX',
+      status: 'COMPLETED',
+      rowCount: 25003,
+      errorMessage: null,
+      expiresAt: new Date(Date.now() + 24 * 3600_000).toISOString(),
+      isExpired: false,
+      canDownload: true,
+      createdAt: new Date().toISOString(),
+    } as T;
   }
 
   if (cleanPath === '/reports/jobs') {
