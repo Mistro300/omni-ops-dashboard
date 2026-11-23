@@ -1,0 +1,67 @@
+name: Deploy Web to Cloudflare Pages
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - 'packages/shared/**'
+      - '.github/workflows/deploy-cloudflare.yml'
+
+jobs:
+  deploy-pages:
+    name: Build & Deploy to Cloudflare Pages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Cloudflare Secrets Configured
+        id: cf-check
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -n "$CF_TOKEN" ] && [ -n "$CF_ACCOUNT" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not configured in GitHub Secrets — skipping Action deploy (use direct Cloudflare Dashboard Git integration or add secrets)."
+          fi
+
+      - name: Checkout repository
+        if: steps.cf-check.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        if: steps.cf-check.outputs.enabled == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: '10.34.9'
+
+      - name: Setup Node.js
+        if: steps.cf-check.outputs.enabled == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        if: steps.cf-check.outputs.enabled == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Build @omni-ops/shared & @omni-ops/web
+        if: steps.cf-check.outputs.enabled == 'true'
+        env:
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1' }}
+          NEXT_PUBLIC_DEMO_MODE: 'true'
+        run: |
+          pnpm --filter @omni-ops/shared build
+          pnpm --filter @omni-ops/web build
+
+      - name: Publish to Cloudflare Pages
+        if: steps.cf-check.outputs.enabled == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/web
+          command: pages deploy .next --project-name=omni-ops-dashboard
